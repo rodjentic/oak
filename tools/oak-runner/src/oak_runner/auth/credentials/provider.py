@@ -103,24 +103,3 @@ class CredentialProviderFactory:
             validators=[ValidCredentialValidator()],
             transformers=[CredentialToRequestAuthValueTransformer()]
         )
-    
-    @staticmethod
-    def create_acorn(agent_id: str) -> CredentialProvider:
-        """Create enterprise provider with all supported backends."""
-        # Minimal defaults - caller provides specific mappings per request
-        # TODO this wont live here, but be in acorn - POC
-        class AcornDBFetchStrategy(FetchStrategy):
-            def __init__(self, agent_id: str):
-                self._agent_id = agent_id
-
-            async def fetch(self, requests: List[AuthRequirement]) -> List[Credential]:
-                pass
-
-            async def populate(self, auth_requirements: List[AuthRequirement]) -> None:
-                pass
-
-        return CredentialProvider(
-            strategy=AcornDBFetchStrategy(agent_id),
-            validators=[ValidCredentialValidator()],
-            transformers=[CredentialToRequestAuthValueTransformer()]
-        )
