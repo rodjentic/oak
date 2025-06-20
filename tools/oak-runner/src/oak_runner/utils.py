@@ -12,6 +12,7 @@ import re
 from typing import Any, Dict, Optional, List
 import jsonpointer
 import yaml
+import warnings
 
 from .models import ServerConfiguration, ServerVariable
 
@@ -349,5 +350,20 @@ def create_env_var_name(
     return env_var_name
 
 
-
-
+def deprecated(reason: str):
+    """
+    Decorator to mark a function as deprecated.
+    
+    Args:
+        reason: Reason for deprecation
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__name__} is deprecated: {reason}",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
