@@ -4,7 +4,6 @@ HTTP Client for OAK Runner
 
 This module provides HTTP request handling for the OAK Runner.
 """
-import asyncio
 import logging
 from typing import Any
 from typing import Optional
@@ -162,11 +161,11 @@ class HTTPExecutor:
                 fetch_options = FetchOptions(
                     source_name=source_name
                 )
-                credentials: list[Credential] = asyncio.run(self.auth_provider.get_credentials(security_options, fetch_options))
+                credentials: list[Credential] = self.auth_provider.get_credentials(security_options, fetch_options)
                 if not credentials:
                     logger.debug("No credentials resolved for the security requirements")
                     return
-                
+
                 # Apply each auth value to the request
                 for credential in credentials:
                     auth_value: RequestAuthValue = credential.request_auth_value

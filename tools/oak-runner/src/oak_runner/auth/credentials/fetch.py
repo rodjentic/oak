@@ -57,7 +57,7 @@ class FetchOptions:
 
 
 class FetchStrategy(ABC):
-    """Defines the asynchronous interface that all credential-fetch mechanisms
+    """Defines the synchronous interface that all credential-fetch mechanisms
     must implement.
 
     A concrete `FetchStrategy` is responsible for turning *security options*—the
@@ -67,14 +67,12 @@ class FetchStrategy(ABC):
     Lifecycle
     ~~~~~~~~~
     1. ``populate`` is called once with the full list of ``AuthRequirement``
-    entries extracted from the OpenAPI/AsyncAPI definition. Implementations use
+    entries extracted from the OpenAPI/Arazzo definition. Implementations use
     this to build an internal cache of `SecurityScheme` objects or perform
     one-off setup.
     2. ``fetch`` / ``fetch_one`` are invoked at runtime to retrieve the actual
     credentials needed for outgoing requests. These may involve network calls,
     secret-store look-ups, environment variable reads, etc.
-
-    All methods are *async* because IO-bound operations are expected.
 
     Methods
     -------
@@ -91,12 +89,12 @@ class FetchStrategy(ABC):
         raise NotImplementedError
     
     @abstractmethod
-    async def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
+    def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
         """Fetch credential(s) based on requests."""
         raise NotImplementedError
     
     @abstractmethod
-    async def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
+    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
         """Fetch credential(s) based on request."""
         raise NotImplementedError
 
@@ -119,7 +117,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
         self._auth_requirements = auth_requirements
         self._security_schemes = create_security_schemes_from_auth_requirements(auth_requirements)
 
-    async def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
+    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
         """
         Fetch credential from environment variable.
         """
@@ -147,13 +145,13 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
 
         return credentials
 
-    async def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
+    def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
         """Fetch credential from environment variable."""
         # Fetch credentials for each request one at a time, as its going to the env
         # we dont need to batch this (but we could)
         credentials = []
         for req in requests:
-            credentials.extend(await self.fetch_one(req, options))
+            credentials.extend(self.fetch_one(req, options))
         return credentials
 
     ###########################################################################

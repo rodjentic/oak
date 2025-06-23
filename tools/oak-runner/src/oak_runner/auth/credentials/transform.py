@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import base64
 import logging
-from typing import Any
 
 from oak_runner.auth.credentials.models import Credential
 from oak_runner.auth.auth_parser import (
@@ -22,7 +21,7 @@ class CredentialTransformer(ABC):
     """Abstract base class for credential transformers."""
     
     @abstractmethod
-    async def transform(self, credential: Credential) -> Credential:
+    def transform(self, credential: Credential) -> Credential:
         """Transform a credential."""
         raise NotImplementedError
 
@@ -30,7 +29,7 @@ class CredentialTransformer(ABC):
 class CredentialToRequestAuthValueTransformer(CredentialTransformer):
     """Transform Credential and create RequestAuthValue."""
     
-    async def transform(self, credential: Credential) -> Credential:
+    def transform(self, credential: Credential) -> Credential:
         match credential.auth_value.type:
             case AuthType.API_KEY:
                 credential.request_auth_value = RequestAuthValue(

@@ -1,5 +1,3 @@
-import pytest
-
 from oak_runner.auth.credentials.fetch import EnvironmentVariableFetchStrategy
 from oak_runner.auth.models import (
     SecurityOption,
@@ -9,8 +7,7 @@ from oak_runner.auth.models import (
 )
 
 
-@pytest.mark.asyncio
-async def test_environment_variable_fetch_strategy_api_key(monkeypatch):
+def test_environment_variable_fetch_strategy_api_key(monkeypatch):
     """Ensure that an API key can be loaded from the environment using the strategy."""
 
     # ---------------------------------------------------------------------
@@ -47,7 +44,7 @@ async def test_environment_variable_fetch_strategy_api_key(monkeypatch):
     # ---------------------------------------------------------------------
     strategy = EnvironmentVariableFetchStrategy(env_mapping=env_mapping)
     strategy.populate([auth_requirement])
-    credentials = await strategy.fetch([security_option])
+    credentials = strategy.fetch([security_option])
 
     # ---------------------------------------------------------------------
     # Verify
@@ -61,8 +58,7 @@ async def test_environment_variable_fetch_strategy_api_key(monkeypatch):
     assert credential.security_scheme.name == "X-API-KEY"
 
 
-@pytest.mark.asyncio
-async def test_environment_variable_missing_key():
+def test_environment_variable_missing_key():
     """If the required environment variable is missing, auth_value should be None."""
 
     env_mapping = {
@@ -84,7 +80,7 @@ async def test_environment_variable_missing_key():
 
     strategy = EnvironmentVariableFetchStrategy(env_mapping=env_mapping)
     strategy.populate([auth_requirement])
-    credentials = await strategy.fetch([security_option])
+    credentials = strategy.fetch([security_option])
 
     assert len(credentials) == 1
     assert credentials[0].auth_value is None, "Auth value should be None when env var is absent"  

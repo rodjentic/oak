@@ -9,7 +9,7 @@ class CredentialValidator(ABC):
     """Abstract base class for credential validators."""
     
     @abstractmethod
-    async def validate(self, credential: Credential) -> bool:
+    def validate(self, credential: Credential) -> bool:
         """Validate a credential."""
         raise NotImplementedError
 
@@ -17,7 +17,7 @@ class CredentialValidator(ABC):
 class ValidCredentialValidator(CredentialValidator):
     """Validator that checks to see if we have a valid credential."""
     
-    async def validate(self, credential: Credential) -> bool:
+    def validate(self, credential: Credential) -> bool:
         # Check if we have a security scheme and auth_value set, if not this isnt valid
         if not credential.security_scheme:
             logger.warning(f"Credential has no security scheme: {credential}")

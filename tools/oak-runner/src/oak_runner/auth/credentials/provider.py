@@ -13,7 +13,7 @@ from oak_runner.auth.credentials.fetch import FetchStrategy, EnvironmentVariable
 from oak_runner.auth.credentials.transform import CredentialTransformer, CredentialToRequestAuthValueTransformer
 from oak_runner.auth.credentials.validate import CredentialValidator, ValidCredentialValidator
 from oak_runner.auth.models import SecurityOption, RequestAuthValue
-from oak_runner.utils import deprecated, run_async
+from oak_runner.utils import deprecated
 
 logger = logging.getLogger(__name__)
 
@@ -46,51 +46,51 @@ class CredentialProvider:
             self.strategy.populate(auth_requirements)
             self._is_populated = True
     
-    async def get_credential(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> List[Credential]:
+    def get_credential(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> List[Credential]:
         if not self._is_populated:
             raise Exception("Provider has not been populated, run populate() first.")
         
         # Fetch credential
         logger.debug(f"Fetching credential for {request=}")
-        credentials = await self.strategy.fetch([request], fetch_options)
+        credentials = self.strategy.fetch([request], fetch_options)
         
         # Validate
-        if not await self._are_valid_credentials(credentials):
+        if not self._are_valid_credentials(credentials):
             logger.warning(f"Failed to fetch valid credentials for {request=}")
             # Return empty list instead of exception, this is the old behaviour
             return []
         # Transform
-        credentials = await self._transform_credentials(credentials)
+        credentials = self._transform_credentials(credentials)
         return credentials
     
-    async def get_credentials(self, requests: List[SecurityOption], fetch_options: FetchOptions | None = None) -> List[Credential]:
+    def get_credentials(self, requests: List[SecurityOption], fetch_options: FetchOptions | None = None) -> List[Credential]:
         credentials = []
         for request in requests:
-            credentials.extend(await self.get_credential(request, fetch_options))
+            credentials.extend(self.get_credential(request, fetch_options))
         return credentials
 
     # Deprecated API #
     @deprecated("Use get_credentials() instead, this will be removed in a future release")
     def resolve_credentials(self, security_options: list[SecurityOption], source_name: str | None = None) -> list[RequestAuthValue]:
-        creds = run_async(self.get_credentials(security_options, FetchOptions(source_name=source_name)))
+        creds = self.get_credentials(security_options, FetchOptions(source_name=source_name))
         return [cred.request_auth_value for cred in creds]
 
     ## Private API ##
-    async def _are_valid_credentials(self, credentials: List[Credential]) -> bool:
+    def _are_valid_credentials(self, credentials: List[Credential]) -> bool:
         """Run all validators on the credentials."""
         for credential in credentials:
             for validator in self.validators:
-                if not await validator.validate(credential):
+                if not validator.validate(credential):
                     return False
         return True
     
-    async def _transform_credentials(self, credentials: List[Credential]) -> List[Credential]:
+    def _transform_credentials(self, credentials: List[Credential]) -> List[Credential]:
         """Apply all transformers to the credentials."""
         results = []
         for credential in credentials:
             result = credential
             for transformer in self.transformers:
-                result = await transformer.transform(result)
+                result = transformer.transform(result)
             results.append(result)
         return results
     

@@ -4,7 +4,6 @@ Utility functions for OAK Runner
 
 This module provides utility functions for the OAK Runner.
 """
-import asyncio
 import json
 import logging
 import os
@@ -367,32 +366,3 @@ def deprecated(reason: str):
             return func(*args, **kwargs)
         return wrapper
     return decorator
-
-
-def run_async(coro):
-    """
-    Run an async function in a running event loop.
-    USE WITH CAUTION!
-    
-    Args:
-        coro: The async function to run
-    
-    Returns:
-        The result of the async function
-    
-    Raises:
-        RuntimeError: If no loop is running
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # No loop is running, safe to use asyncio.run
-        return asyncio.run(coro)
-
-    # Loop already running – use nest_asyncio workaround
-    try:
-        import nest_asyncio
-        nest_asyncio.apply()
-        return loop.run_until_complete(coro)
-    except Exception as e:
-        raise RuntimeError("Could not run async code in sync context with running loop")

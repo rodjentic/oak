@@ -6,7 +6,7 @@ This file contains tests for the HTTPExecutor class in the OAK Runner library,
 with a focus on authentication handling.
 """
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import Mock
 import logging
 
 from oak_runner.auth.credentials.models import Credential
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class MockCredentialProvider:
     """Mock credential provider for testing - ONLY mock out what we need"""
 
-    async def get_credentials(self, security_options, fetch_options):
+    def get_credentials(self, security_options, fetch_options):
         """Mock implementation of get_credentials"""
         return []
 
@@ -59,7 +59,7 @@ def test_apply_auth_no_provider(basic_http_client: HTTPExecutor):
 def test_apply_auth_query_parameter(http_client: HTTPExecutor):
     """Test applying auth as query parameters"""
     # Mock out the get_credentials to return a credential
-    http_client.auth_provider.get_credentials = AsyncMock(
+    http_client.auth_provider.get_credentials = Mock(
         return_value=[
             Credential(
                 id="test-credential-id",
@@ -100,7 +100,7 @@ def test_apply_auth_query_parameter(http_client: HTTPExecutor):
 def test_apply_auth_header(http_client: HTTPExecutor):
     """Test applying auth as headers"""
     # Create mock auth provider with header auth
-    http_client.auth_provider.get_credentials = AsyncMock(
+    http_client.auth_provider.get_credentials = Mock(
         return_value=[
             Credential(
                 id="test-credential-auth-id",
@@ -140,7 +140,7 @@ def test_apply_auth_header(http_client: HTTPExecutor):
 def test_apply_auth_cookie(http_client: HTTPExecutor):
     """Test applying auth as cookies"""
 
-    http_client.auth_provider.get_credentials = AsyncMock(
+    http_client.auth_provider.get_credentials = Mock(
         return_value=[
             Credential(
                 id="test-credential-auth-id",
@@ -181,7 +181,7 @@ def test_apply_auth_multiple_requirements(http_client: HTTPExecutor):
     """Test applying auth with multiple requirements in different locations"""
     # Create mock auth provider with multiple auth requirements
 
-    http_client.auth_provider.get_credentials = AsyncMock(
+    http_client.auth_provider.get_credentials = Mock(
         return_value=[
             Credential(
                 id="test-credential-auth-id",
@@ -238,7 +238,7 @@ def test_apply_auth_multiple_requirements(http_client: HTTPExecutor):
 def test_apply_auth_missing_value(http_client: HTTPExecutor):
     """Test handling of missing auth values"""
     # Create mock auth provider with auth requirement but missing value
-    http_client.auth_provider.get_credentials = AsyncMock(
+    http_client.auth_provider.get_credentials = Mock(
         return_value=[
             Credential(
                 id="test-credential-auth-id",
@@ -275,7 +275,7 @@ def test_apply_auth_missing_value(http_client: HTTPExecutor):
 def test_apply_auth_unknown_location(http_client: HTTPExecutor):
     """Test handling of unknown auth location (should default to header)"""
     # Create mock auth provider with unknown auth location
-    http_client.auth_provider.get_credentials = AsyncMock(
+    http_client.auth_provider.get_credentials = Mock(
         return_value=[
             Credential(
                 id="test-credential-auth-id",
@@ -312,7 +312,7 @@ def test_apply_auth_unknown_location(http_client: HTTPExecutor):
     assert cookies == {}
 
 
-async def mock_get_credentials(request, options) -> list[Credential]:
+def mock_get_credentials(request, options) -> list[Credential]:
     logger.debug(f"Mock get_credentials called with options: {options}")
     cred1 = Credential(
                 id="test-credential-auth-id",
@@ -343,7 +343,7 @@ async def mock_get_credentials(request, options) -> list[Credential]:
 def test_apply_auth_multiple_apis(http_client: HTTPExecutor):
     """Test applying auth from multiple APIs"""
     # Create mock auth provider with multiple APIs
-    http_client.auth_provider.get_credentials = AsyncMock(side_effect=mock_get_credentials)
+    http_client.auth_provider.get_credentials = Mock(side_effect=mock_get_credentials)
 
     headers = {}
     query_params = {}
