@@ -9,7 +9,6 @@ import requests
 
 from oak_runner.auth.auth_parser import AuthRequirement
 from oak_runner.auth.credentials.models import Credential
-from oak_runner.auth.credentials.cache import InMemoryCredentialCache, CredentialCache
 from oak_runner.auth.credentials.fetch import FetchStrategy, EnvironmentVariableFetchStrategy, FetchOptions
 from oak_runner.auth.credentials.transform import CredentialTransformer, CredentialToRequestAuthValueTransformer
 from oak_runner.auth.credentials.validate import CredentialValidator, ValidCredentialValidator
@@ -28,12 +27,10 @@ class CredentialProvider:
     def __init__(
         self,
         strategy: FetchStrategy,
-        cache: CredentialCache | None = None,
         validators: List[CredentialValidator] | None = None,
         transformers: List[CredentialTransformer] | None = None
     ):
         self.strategy: FetchStrategy = strategy
-        self.cache: CredentialCache = cache or InMemoryCredentialCache()
         self.validators: List[CredentialValidator] = validators or []
         self.transformers: List[CredentialTransformer] = transformers or []
 
