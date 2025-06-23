@@ -7,7 +7,6 @@ workflow specification. It builds an execution tree based on the possible paths 
 executes OpenAPI operations sequentially, handling success/failure conditions and flow control.
 """
 
-import asyncio
 import logging
 from collections.abc import Callable
 import json
@@ -18,8 +17,10 @@ from .auth.auth_processor import AuthProcessor
 from .evaluator import ExpressionEvaluator
 from .executor import StepExecutor
 from .http import HTTPExecutor
-from .models import ActionType, ArazzoDoc, ExecutionState, OpenAPIDoc, StepStatus, WorkflowExecutionStatus, WorkflowExecutionResult, RuntimeParams
-from .utils import dump_state, load_arazzo_doc, load_source_descriptions, load_openapi_file, deprecated, run_async
+from .models import (
+    ActionType, ArazzoDoc, ExecutionState, OpenAPIDoc, StepStatus, WorkflowExecutionStatus, WorkflowExecutionResult, RuntimeParams
+)
+from .utils import dump_state, load_arazzo_doc, load_source_descriptions, load_openapi_file, deprecated
 from .auth.credentials.provider import CredentialProviderFactory, CredentialProvider
 from .executor.server_processor import ServerProcessor
 
