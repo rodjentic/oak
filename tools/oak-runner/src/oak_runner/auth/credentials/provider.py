@@ -13,7 +13,8 @@ from oak_runner.auth.credentials.cache import InMemoryCredentialCache, Credentia
 from oak_runner.auth.credentials.fetch import FetchStrategy, EnvironmentVariableFetchStrategy, FetchOptions
 from oak_runner.auth.credentials.transform import CredentialTransformer, CredentialToRequestAuthValueTransformer
 from oak_runner.auth.credentials.validate import CredentialValidator, ValidCredentialValidator
-from oak_runner.auth.models import SecurityOption
+from oak_runner.auth.models import SecurityOption, RequestAuthValue
+from oak_runner.utils import deprecated, run_async
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,12 @@ class CredentialProvider:
         for request in requests:
             credentials.extend(await self.get_credential(request, fetch_options))
         return credentials
+
+    # Deprecated API #
+    @deprecated("Use get_credentials() instead, this will be removed in a future release")
+    def resolve_credentials(self, security_options: list[SecurityOption], source_name: str | None = None) -> list[RequestAuthValue]:
+        creds = run_async(self.get_credentials(security_options, FetchOptions(source_name=source_name)))
+        return [cred.request_auth_value for cred in creds]
 
     ## Private API ##
     async def _are_valid_credentials(self, credentials: List[Credential]) -> bool:

@@ -28,11 +28,9 @@ class CredentialTransformer(ABC):
 
 
 class CredentialToRequestAuthValueTransformer(CredentialTransformer):
-    """Transforms Credential into RequestAuthValue."""
+    """Transform Credential and create RequestAuthValue."""
     
     async def transform(self, credential: Credential) -> Credential:
-        """Transform Credential into RequestAuthValue."""
-
         match credential.auth_value.type:
             case AuthType.API_KEY:
                 credential.request_auth_value = RequestAuthValue(

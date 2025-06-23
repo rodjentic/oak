@@ -10,6 +10,7 @@ from oak_runner.auth.models import (
     AuthLocation,
     SecurityOption,
     SecurityRequirement,
+    RequestAuthValue,
     EnvVarKeys,
 )
 
@@ -353,6 +354,21 @@ async def test_resolve_credentials_with_source_name(env_mappings, monkeypatch):
     assert result_source2[0].request_auth_value.location == AuthLocation.HEADER
     assert result_source2[0].request_auth_value.name == "ApiKey"
     assert result_source2[0].request_auth_value.auth_value == "api-key-from-source2"
+
+    # Ensure deprecate method still works
+    result_source1_deprecated = provider.resolve_credentials([security_option], "source1")
+    assert len(result_source1_deprecated) == 1
+    assert isinstance(result_source1_deprecated[0], RequestAuthValue)
+    assert result_source1_deprecated[0].location == AuthLocation.HEADER
+    assert result_source1_deprecated[0].name == "ApiKey"
+    assert result_source1_deprecated[0].auth_value == "api-key-from-source1"
+
+    result_source2_deprecated = provider.resolve_credentials([security_option], "source2")
+    assert len(result_source2_deprecated) == 1
+    assert isinstance(result_source2_deprecated[0], RequestAuthValue)
+    assert result_source2_deprecated[0].location == AuthLocation.HEADER
+    assert result_source2_deprecated[0].name == "ApiKey"
+    assert result_source2_deprecated[0].auth_value == "api-key-from-source2"
 
 
 @pytest.mark.asyncio

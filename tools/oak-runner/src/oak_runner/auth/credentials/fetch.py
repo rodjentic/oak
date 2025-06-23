@@ -404,8 +404,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
         if env_var_name:
             logger.debug(f"Found env var name: {env_var_name=}")
             return os.getenv(env_var_name, default=None)
-        
-        print (source_name, self._env_mapping)
+
         # Try to find using source name as the outer key
         if source_name and source_name in self._env_mapping:
             logger.debug(f"Found source name: {source_name=}")

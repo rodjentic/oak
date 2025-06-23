@@ -285,7 +285,7 @@ def test_apply_auth_unknown_location(http_client: HTTPExecutor):
                     auth_value="test-api-key-12345"
                 )
             )
-        ]ß
+        ]
     )
 
     headers = {}

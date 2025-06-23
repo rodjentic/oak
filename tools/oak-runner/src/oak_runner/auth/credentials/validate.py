@@ -20,9 +20,9 @@ class ValidCredentialValidator(CredentialValidator):
     async def validate(self, credential: Credential) -> bool:
         # Check if we have a security scheme and auth_value set, if not this isnt valid
         if not credential.security_scheme:
-            logger.debug(f"Credential has no security scheme: {credential}")
+            logger.warning(f"Credential has no security scheme: {credential}")
             return False
         if not credential.auth_value:
-            logger.debug(f"Credential has no auth value: {credential}")
+            logger.warning(f"Credential has no auth value: {credential}")
             return False
         return True
