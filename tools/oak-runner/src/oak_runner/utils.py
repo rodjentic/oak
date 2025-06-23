@@ -372,6 +372,7 @@ def deprecated(reason: str):
 def run_async(coro):
     """
     Run an async function in a running event loop.
+    USE WITH CAUTION!
     
     Args:
         coro: The async function to run

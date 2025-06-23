@@ -87,7 +87,7 @@ class FetchStrategy(ABC):
     """
     
     @abstractmethod
-    async def populate(self, auth_requirements: List[AuthRequirement]) -> None:
+    def populate(self, auth_requirements: List[AuthRequirement]) -> None:
         raise NotImplementedError
     
     @abstractmethod
@@ -114,7 +114,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
         self._auth_requirements: List[AuthRequirement] = []
         self._security_schemes: Dict[str, Dict[str, SecurityScheme]] = {}
 
-    async def populate(self, auth_requirements: List[AuthRequirement]) -> None:
+    def populate(self, auth_requirements: List[AuthRequirement]) -> None:
         logger.debug(f"Populating environment variable fetch strategy with {auth_requirements=}")
         self._auth_requirements = auth_requirements
         self._security_schemes = create_security_schemes_from_auth_requirements(auth_requirements)

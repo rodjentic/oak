@@ -46,7 +46,7 @@ async def test_environment_variable_fetch_strategy_api_key(monkeypatch):
     # Exercise
     # ---------------------------------------------------------------------
     strategy = EnvironmentVariableFetchStrategy(env_mapping=env_mapping)
-    await strategy.populate([auth_requirement])
+    strategy.populate([auth_requirement])
     credentials = await strategy.fetch([security_option])
 
     # ---------------------------------------------------------------------
@@ -83,7 +83,7 @@ async def test_environment_variable_missing_key():
     )
 
     strategy = EnvironmentVariableFetchStrategy(env_mapping=env_mapping)
-    await strategy.populate([auth_requirement])
+    strategy.populate([auth_requirement])
     credentials = await strategy.fetch([security_option])
 
     assert len(credentials) == 1

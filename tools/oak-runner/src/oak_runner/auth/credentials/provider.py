@@ -37,13 +37,13 @@ class CredentialProvider:
         self._is_populated: bool = False
     
     ## Public API ##
-    async def populate(self, auth_requirements: List[AuthRequirement]):
+    def populate(self, auth_requirements: List[AuthRequirement]):
         """
         Populates the provider with the given auth requirements.
         This is a one-time operation that is run when the provider is initialized, however it is idempotent.
         """
         if not self._is_populated:
-            await self.strategy.populate(auth_requirements)
+            self.strategy.populate(auth_requirements)
             self._is_populated = True
     
     async def get_credential(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> List[Credential]:

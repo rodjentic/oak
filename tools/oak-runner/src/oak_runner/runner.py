@@ -19,7 +19,7 @@ from .evaluator import ExpressionEvaluator
 from .executor import StepExecutor
 from .http import HTTPExecutor
 from .models import ActionType, ArazzoDoc, ExecutionState, OpenAPIDoc, StepStatus, WorkflowExecutionStatus, WorkflowExecutionResult, RuntimeParams
-from .utils import dump_state, load_arazzo_doc, load_source_descriptions, load_openapi_file, deprecated
+from .utils import dump_state, load_arazzo_doc, load_source_descriptions, load_openapi_file, deprecated, run_async
 from .auth.credentials.provider import CredentialProviderFactory, CredentialProvider
 from .executor.server_processor import ServerProcessor
 
@@ -66,7 +66,7 @@ class OAKRunner:
             env_mapping=auth_config.get("env_mappings", {}),
             http_client=http_client
         )
-        asyncio.run(self.auth_provider.populate(auth_config.get("auth_requirements", [])))
+        self.auth_provider.populate(auth_config.get("auth_requirements", []))
 
         # Initialize HTTP client
         http_executor = HTTPExecutor(http_client, self.auth_provider)

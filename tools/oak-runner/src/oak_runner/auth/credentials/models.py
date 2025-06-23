@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, Union, TYPE_CHECKING
+from typing import Dict, Any, Union
 
-if TYPE_CHECKING:
-    from oak_runner.auth_parser.models import AuthValue, RequestAuthValue, SecurityScheme
+from oak_runner.auth.models import AuthValue, RequestAuthValue, SecurityScheme
 
 
 @dataclass
@@ -35,6 +34,6 @@ class Credential:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Fields that are populated by the provider and/or transformer
-    auth_value: Union["AuthValue", None] = None
-    request_auth_value: Union["RequestAuthValue", None] = None
-    security_scheme: Union["SecurityScheme", None] = None
+    auth_value: Union[AuthValue, None] = None
+    request_auth_value: Union[RequestAuthValue, None] = None
+    security_scheme: Union[SecurityScheme, None] = None
