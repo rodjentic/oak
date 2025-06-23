@@ -139,7 +139,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             logger.debug(f'Found matching auth scheme: {scheme_name}')
             credentials.append(
                 Credential(
-                    id=f"env-{scheme_name}",  # TODO not shit
+                    id=f"env-{scheme_name}",
                     security_scheme=scheme,
                     auth_value=self._resolve_auth_value(scheme_name, source_name, requirement.scopes)
                 )

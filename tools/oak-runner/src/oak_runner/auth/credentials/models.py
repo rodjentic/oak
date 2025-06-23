@@ -19,7 +19,7 @@ class Credential:
     Attributes
     ----------
     id: str
-        identifier for the credential
+        identifier for the credential (Not unique, may be the same for multiple credentials)
     metadata: Dict[str, Any]
         Arbitrary auxiliary data coming from the provider. Can include issuer
         information, requested scopes, location hints, etc.

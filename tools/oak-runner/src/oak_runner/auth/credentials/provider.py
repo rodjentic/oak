@@ -57,8 +57,8 @@ class CredentialProvider:
         # Validate
         if not await self._are_valid_credentials(credentials):
             logger.warning(f"Failed to fetch valid credentials for {request=}")
-            return []  # TODO old behaviour, probably change it
-
+            # Return empty list instead of exception, this is the old behaviour
+            return []
         # Transform
         credentials = await self._transform_credentials(credentials)
         return credentials
