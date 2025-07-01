@@ -42,8 +42,10 @@ def test_environment_variable_fetch_strategy_api_key(monkeypatch):
     # ---------------------------------------------------------------------
     # Exercise
     # ---------------------------------------------------------------------
-    strategy = EnvironmentVariableFetchStrategy(env_mapping=env_mapping)
-    strategy.populate([auth_requirement])
+    strategy = EnvironmentVariableFetchStrategy(
+        env_mapping=env_mapping,
+        auth_requirements=[auth_requirement]
+    )
     credentials = strategy.fetch([security_option])
 
     # ---------------------------------------------------------------------
@@ -78,8 +80,10 @@ def test_environment_variable_missing_key():
         requirements=[SecurityRequirement(scheme_name="myApiKey", scopes=[])]
     )
 
-    strategy = EnvironmentVariableFetchStrategy(env_mapping=env_mapping)
-    strategy.populate([auth_requirement])
+    strategy = EnvironmentVariableFetchStrategy(
+        env_mapping=env_mapping,
+        auth_requirements=[auth_requirement]
+    )
     credentials = strategy.fetch([security_option])
 
     assert len(credentials) == 1

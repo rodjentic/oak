@@ -33,23 +33,9 @@ class CredentialProvider:
         self.strategy: FetchStrategy = strategy
         self.validators: List[CredentialValidator] = validators or []
         self.transformers: List[CredentialTransformer] = transformers or []
-
-        self._is_populated: bool = False
     
     ## Public API ##
-    def populate(self, auth_requirements: List[AuthRequirement]):
-        """
-        Populates the provider with the given auth requirements.
-        This is a one-time operation that is run when the provider is initialized, however it is idempotent.
-        """
-        if not self._is_populated:
-            self.strategy.populate(auth_requirements)
-            self._is_populated = True
-    
     def get_credential(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> List[Credential]:
-        if not self._is_populated:
-            raise Exception("Provider has not been populated, run populate() first.")
-        
         # Fetch credential
         logger.debug(f"Fetching credential for {request=}")
         credentials = self.strategy.fetch([request], fetch_options)
@@ -59,6 +45,7 @@ class CredentialProvider:
             logger.warning(f"Failed to fetch valid credentials for {request=}")
             # Return empty list instead of exception, this is the old behaviour
             return []
+
         # Transform
         credentials = self._transform_credentials(credentials)
         return credentials
@@ -93,6 +80,9 @@ class CredentialProvider:
                 result = transformer.transform(result)
             results.append(result)
         return results
+
+    def __str__(self) -> str:
+        return f"CredentialProvider(strategy={self.strategy}, validators={self.validators}, transformers={self.transformers})"
     
 
 # Factory for common configurations
@@ -100,10 +90,14 @@ class CredentialProviderFactory:
     """Factory for creating common credential provider configurations."""
     
     @staticmethod
-    def create_default(env_mapping: Dict[str, str], http_client: requests.Session | None = None) -> CredentialProvider:
+    def create_default(
+        env_mapping: Dict[str, str],
+        http_client: requests.Session | None = None,
+        auth_requirements: List[AuthRequirement] | None = None
+    ) -> CredentialProvider:
         """Create a default credential provider with EnvironmentVariableFetchStrategy"""
         return CredentialProvider(
-            strategy=EnvironmentVariableFetchStrategy(env_mapping, http_client),
+            strategy=EnvironmentVariableFetchStrategy(env_mapping, http_client, auth_requirements),
             validators=[ValidCredentialValidator()],
             transformers=[CredentialToRequestAuthValueTransformer()]
         )

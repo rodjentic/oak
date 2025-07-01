@@ -77,9 +77,9 @@ def test_resolve_credentials_api_key(api_key_req, env_mappings, monkeypatch):
     # Create provider with API Key auth requirement
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[api_key_req]
     )
-    provider.populate([api_key_req])
     
     # Create security option with API Key requirement
     security_option = SecurityOption(
@@ -110,9 +110,9 @@ def test_resolve_credentials_bearer(env_mappings, bearer_req, monkeypatch):
     # Create provider with Bearer auth requirement
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[bearer_req]
     )
-    provider.populate([bearer_req])
     
     # Create security option with Bearer requirement
     security_option = SecurityOption(
@@ -142,9 +142,9 @@ def test_resolve_credentials_basic(env_mappings, basic_req, monkeypatch):
     # Create provider with Basic auth requirement
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[basic_req]
     )
-    provider.populate([basic_req])
     
     # Create security option with Basic auth requirement
     security_option = SecurityOption(
@@ -175,9 +175,9 @@ def test_resolve_credentials_missing_env_vars(env_mappings, monkeypatch, basic_r
     # Create provider with Basic auth requirement (but missing env vars)
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[basic_req]
     )
-    provider.populate([basic_req])
     
     # Create security option with Basic auth requirement
     security_option = SecurityOption(
@@ -203,9 +203,9 @@ def test_resolve_credentials_multiple_options(env_mappings, api_key_req, bearer_
     # Create provider with multiple auth requirements
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[api_key_req, bearer_req, basic_req]
     )
-    provider.populate([api_key_req, bearer_req, basic_req])
     
     # Create security options (API Key OR Bearer)
     api_key_option = SecurityOption(
@@ -246,9 +246,9 @@ def test_resolve_credentials_combined_requirements(env_mappings, api_key_req, be
     # Create provider with multiple auth requirements
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[api_key_req, bearer_req]
     )
-    provider.populate([api_key_req, bearer_req])
     
     # Create security option with multiple requirements (API Key AND Bearer)
     combined_option = SecurityOption(
@@ -318,9 +318,9 @@ def test_resolve_credentials_with_source_name(env_mappings, monkeypatch):
     # Create provider with auth requirements from both sources
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[api_key_req_source1, api_key_req_source2]
     )
-    provider.populate([api_key_req_source1, api_key_req_source2])
     
     # Create security option with ApiKeyAuth requirement
     security_option = SecurityOption(
@@ -404,9 +404,9 @@ def test_resolve_credentials_with_conflicting_scheme_names(monkeypatch):
     # Create provider with auth requirements from both sources
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=MagicMock()
+        http_client=MagicMock(),
+        auth_requirements=[api_key_req_source1, api_key_req_source2]
     )
-    provider.populate([api_key_req_source1, api_key_req_source2])
     
     # Create security option with ApiKeyAuth requirement
     security_option = SecurityOption(
@@ -485,9 +485,9 @@ def test_resolve_credentials_oauth2_client_credentials(monkeypatch, env_mappings
     # Create provider with OAuth2 auth requirement and mock HTTP client
     provider = CredentialProviderFactory.create_default(
         env_mapping=env_mappings,
-        http_client=mock_http_client
+        http_client=mock_http_client,
+        auth_requirements=[oauth2_req]
     )
-    provider.populate([oauth2_req])
     
     # Create security option with OAuth2 requirement
     security_option = SecurityOption(

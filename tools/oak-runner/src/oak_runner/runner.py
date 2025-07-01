@@ -64,10 +64,10 @@ class OAKRunner:
 
         http_client = http_client or requests.Session()
         self.auth_provider = auth_provider or CredentialProviderFactory.create_default(
+            auth_requirements=auth_config.get("auth_requirements", []),
             env_mapping=auth_config.get("env_mappings", {}),
             http_client=http_client
         )
-        self.auth_provider.populate(auth_config.get("auth_requirements", []))
 
         # Initialize HTTP client
         http_executor = HTTPExecutor(http_client, self.auth_provider)

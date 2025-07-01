@@ -66,27 +66,17 @@ class FetchStrategy(ABC):
 
     Lifecycle
     ~~~~~~~~~
-    1. ``populate`` is called once with the full list of ``AuthRequirement``
-    entries extracted from the OpenAPI/Arazzo definition. Implementations use
-    this to build an internal cache of `SecurityScheme` objects or perform
-    one-off setup.
-    2. ``fetch`` / ``fetch_one`` are invoked at runtime to retrieve the actual
+    1. ``fetch`` / ``fetch_one`` are invoked at runtime to retrieve the actual
     credentials needed for outgoing requests. These may involve network calls,
     secret-store look-ups, environment variable reads, etc.
 
     Methods
     -------
-    populate(auth_requirements)
-        Pre-load strategy with global authentication requirements.
     fetch(requests, options)
         Retrieve credentials for a batch of ``SecurityOption`` instances.
     fetch_one(request, options)
         Retrieve credentials for a single ``SecurityOption`` instance.
     """
-    
-    @abstractmethod
-    def populate(self, auth_requirements: List[AuthRequirement]) -> None:
-        raise NotImplementedError
     
     @abstractmethod
     def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
@@ -105,17 +95,14 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
     def __init__(
         self,
         env_mapping: Dict[str, str] | None = None,
-        http_client: requests.Session | None = None
+        http_client: requests.Session | None = None,
+        auth_requirements: List[AuthRequirement] = None
     ):
         self._env_mapping: Dict[str, str] = env_mapping or {}
         self._http_client: requests.Session | None = http_client
-        self._auth_requirements: List[AuthRequirement] = []
-        self._security_schemes: Dict[str, Dict[str, SecurityScheme]] = {}
-
-    def populate(self, auth_requirements: List[AuthRequirement]) -> None:
-        logger.debug(f"Populating environment variable fetch strategy with {auth_requirements=}")
-        self._auth_requirements = auth_requirements
-        self._security_schemes = create_security_schemes_from_auth_requirements(auth_requirements)
+        self._auth_requirements: List[AuthRequirement] = auth_requirements or []
+        self._security_schemes: Dict[str, Dict[str, SecurityScheme]] = \
+            create_security_schemes_from_auth_requirements(self._auth_requirements)
 
     def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
         """
