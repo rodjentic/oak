@@ -10,6 +10,8 @@ from unittest.mock import Mock
 import logging
 
 from oak_runner.auth.credentials.models import Credential
+import requests
+from unittest.mock import patch, MagicMock
 from oak_runner.auth.models import SecurityOption, SecurityRequirement, RequestAuthValue, AuthLocation
 from oak_runner.http import HTTPExecutor
 
@@ -368,3 +370,440 @@ def test_apply_auth_multiple_apis(http_client: HTTPExecutor):
     assert query_params == {"api1-key": "api1-key-value"}
     assert headers == {"api2-key": "api2-key-value"}
     assert cookies == {}
+
+
+def test_execute_request_multipart(http_client: HTTPExecutor):
+    """Test executing a multipart/form-data request."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {'Content-Type': 'application/json'}
+    mock_response.json.return_value = {'status': 'ok'}
+
+    request_body = {
+        "contentType": "multipart/form-data",
+        "payload": {
+            "file": {
+                "content": b"file content",
+                "filename": "test.txt",
+                "contentType": "text/plain"
+            },
+            "description": "A test file"
+        }
+    }
+        
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/upload",
+            parameters={},
+            request_body=request_body,
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['method'] == 'POST'
+        assert kwargs['url'] == 'http://test.com/upload'
+        assert 'files' in kwargs
+        assert kwargs['files']['file'] == ('test.txt', b'file content', 'text/plain')
+        assert 'data' in kwargs
+        assert kwargs['data']['description'] == 'A test file'
+        assert 'Content-Type' not in kwargs['headers']  # requests sets this for multipart
+
+
+def test_execute_request_json_body(http_client: HTTPExecutor):
+    """Test executing a request with a JSON body."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {'Content-Type': 'application/json'}
+    mock_response.json.return_value = {'status': 'ok'}
+    
+    request_body = {
+        "contentType": "application/json",
+        "payload": {"key": "value"}
+    }
+
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/data",
+            parameters={},
+            request_body=request_body,
+            security_options=None,
+            source_name=None
+        )
+        
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['json'] == {"key": "value"}
+        assert kwargs['headers']['Content-Type'] == 'application/json'
+
+
+def test_execute_request_form_body(http_client: HTTPExecutor):
+    """Test executing a request with a form URL encoded body."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
+    mock_response.json.side_effect = ValueError # no json
+    mock_response.text = "Success"
+    
+    request_body = {
+        "contentType": "application/x-www-form-urlencoded",
+        "payload": {"key": "value"}
+    }
+
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/submit",
+            parameters={},
+            request_body=request_body,
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['data'] == {"key": "value"}
+        assert kwargs['headers']['Content-Type'] == 'application/x-www-form-urlencoded'
+
+
+def test_execute_request_raw_body(http_client: HTTPExecutor):
+    """Test executing a request with a raw string body."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {}
+    mock_response.json.side_effect = ValueError
+    mock_response.text = "OK"
+    
+    request_body = {
+        "contentType": "text/plain",
+        "payload": "this is raw text"
+    }
+
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/raw",
+            parameters={},
+            request_body=request_body,
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['data'] == "this is raw text"
+        assert kwargs['headers']['Content-Type'] == 'text/plain'
+
+
+def test_execute_request_binary_response(http_client: HTTPExecutor):
+    """Test handling of a binary response."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {'Content-Type': 'image/png'}
+    mock_response.content = b'imagedata'
+    mock_response.json.side_effect = ValueError
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        response = http_client.execute_request(
+            method="GET",
+            url="http://test.com/image.png",
+            parameters={},
+            request_body=None,
+            security_options=None,
+            source_name=None
+        )
+
+        assert response['body'] == b'imagedata'
+
+
+def test_execute_request_text_response(http_client: HTTPExecutor):
+    """Test handling of a text response when JSON fails."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {'Content-Type': 'text/html'}
+    mock_response.text = '<html></html>'
+    mock_response.json.side_effect = ValueError
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        response = http_client.execute_request(
+            method="GET",
+            url="http://test.com/page.html",
+            parameters={},
+            request_body=None,
+            security_options=None,
+            source_name=None
+        )
+
+        assert response['body'] == '<html></html>'
+
+
+def test_execute_request_content_type_with_none_payload(http_client: HTTPExecutor):
+    """Test that a content-type header is sent with a None payload."""
+    mock_response = MagicMock()
+    mock_response.status_code = 204
+    mock_response.headers = {}
+    mock_response.text = ''
+    mock_response.json.side_effect = ValueError
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/action",
+            parameters={},
+            request_body={"contentType": "application/json", "payload": None},
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['headers']['Content-Type'] == 'application/json'
+        assert kwargs['data'] is None
+        assert kwargs['json'] is None
+
+
+def test_execute_request_no_content_type_infers_json(http_client: HTTPExecutor):
+    """Test that a dict payload with no content type is sent as JSON."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {'status': 'ok'}
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/infer",
+            parameters={},
+            request_body={"contentType": None, "payload": {"key": "value"}},
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['json'] == {"key": "value"}
+        assert kwargs['headers']['Content-Type'] == 'application/json'
+
+
+def test_execute_request_no_content_type_sends_raw_bytes(http_client: HTTPExecutor):
+    """Test that a bytes payload with no content type is sent as raw data."""
+    mock_response = MagicMock()
+    mock_response.status_code = 204
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/raw-bytes",
+            parameters={},
+            request_body={"contentType": None, "payload": b"raw data"},
+            security_options=None,
+            source_name=None
+        )
+        
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['data'] == b"raw data"
+        assert 'Content-Type' not in kwargs['headers']
+
+
+def test_execute_request_multipart_with_raw_bytes_fallback(http_client: HTTPExecutor):
+    """Test multipart upload where one field is raw bytes."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {'status': 'ok'}
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        request_body = {
+            "contentType": "multipart/form-data",
+            "payload": {
+                "raw_file": b"raw file content",
+                "description": "A test file"
+            }
+        }
+        
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/upload",
+            parameters={},
+            request_body=request_body,
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert 'files' in kwargs
+        assert kwargs['files']['raw_file'] == ('attachment', b"raw file content", 'application/octet-stream')
+        assert kwargs['data']['description'] == 'A test file'
+
+
+def test_execute_request_network_error(http_client: HTTPExecutor):
+    """Test that a network error (e.g., Timeout) is raised."""
+    with patch('requests.Session.request', side_effect=requests.exceptions.Timeout("Connection timed out")):
+        with pytest.raises(requests.exceptions.Timeout):
+            http_client.execute_request(
+                method="GET",
+                url="http://test.com/timeout",
+                parameters={},
+                request_body=None,
+                security_options=None,
+                source_name=None
+            )
+
+
+def test_get_content_type_category(http_client: HTTPExecutor):
+    """Test the content type categorization logic with various inputs."""
+    test_cases = {
+        "application/json": "json",
+        "application/hal+json": "json",
+        "text/json": "json",
+        "multipart/form-data; boundary=123": "multipart",
+        "application/x-www-form-urlencoded": "form",
+        "text/plain": "raw",
+        "image/png": "raw",
+        None: "unknown",
+        "": "unknown", # Empty string is treated as unknown by implementation
+    }
+    for content_type, expected_category in test_cases.items():
+        category = http_client._get_content_type_category(content_type)
+        assert category == expected_category
+
+
+def test_execute_request_bad_json_response(http_client: HTTPExecutor):
+    """Test that a text fallback occurs for an invalid JSON response."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.headers = {'Content-Type': 'application/json'} # Mismatched header
+    mock_response.text = 'this is not json'
+    mock_response.json.side_effect = ValueError("Invalid JSON") # As requests.json() would
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        response = http_client.execute_request(
+            method="GET",
+            url="http://test.com/bad-json",
+            parameters={},
+            request_body=None,
+            security_options=None,
+            source_name=None
+        )
+
+        assert response['body'] == 'this is not json'
+
+
+def test_apply_auth_bearer(http_client: HTTPExecutor):
+    """Test applying Bearer token authorization."""
+    http_client.auth_provider.get_credentials = Mock(
+        return_value=[
+            Credential(
+                id="bearer-api",
+                request_auth_value=RequestAuthValue(
+                    location=AuthLocation.HEADER,
+                    name="Authorization",
+                    auth_value="Bearer my-secret-token"
+                )
+            )
+        ]
+    )
+
+    headers, query_params, cookies = {}, {}, {}
+
+    security_options = [
+        SecurityOption(requirements=[SecurityRequirement(scheme_name="Authorization", scopes=[])])
+    ]
+
+    http_client._apply_auth_to_request(
+        "https://example.com", headers, query_params, cookies, security_options
+    )
+
+    assert headers == {"Authorization": "Bearer my-secret-token"}
+    assert query_params == {}
+    assert cookies == {}
+
+
+def test_apply_auth_multiple_options_or_logic(http_client: HTTPExecutor):
+    """Test that the second security option is used if the first cannot be satisfied."""
+    http_client.auth_provider.get_credentials = Mock(
+        return_value=[
+            Credential(
+                id="x-token",
+                request_auth_value=RequestAuthValue(
+                    location=AuthLocation.HEADER,
+                    name="X-Token",
+                    auth_value="my-token"
+                )
+            )
+        ]
+    )
+
+    headers, query_params, cookies = {}, {}, {}
+
+    # The real provider would evaluate these as an OR, satisfying the second.
+    # The mock provider will find all possible credentials. We assert only one is found.
+    security_options = [
+        SecurityOption(requirements=[SecurityRequirement(scheme_name="api_key", scopes=[])]),
+        SecurityOption(requirements=[SecurityRequirement(scheme_name="X-Token", scopes=[])]),
+    ]
+
+    http_client._apply_auth_to_request(
+        "https://example.com", headers, query_params, cookies, security_options
+    )
+
+    assert headers == {"X-Token": "my-token"}
+    assert query_params == {}
+
+
+def test_execute_request_raw_with_unserializable_payload(http_client: HTTPExecutor):
+    """Test sending a non-string/bytes payload with a 'raw' content type."""
+    mock_response = MagicMock()
+    mock_response.status_code = 204
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        payload = {"this": "is a dict"}
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/raw-dict",
+            parameters={},
+            request_body={"contentType": "text/plain", "payload": payload},
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        assert kwargs['data'] == str(payload)
+        assert kwargs['headers']['Content-Type'] == 'text/plain'
+
+
+def test_execute_request_multipart_missing_content_key(http_client: HTTPExecutor):
+    """Test multipart processing with a file dict missing 'content': should treat it as regular field."""
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"status": "ok"}
+    with patch('requests.Session.request', return_value=mock_response) as mock_request:
+        request_body = {
+            "contentType": "multipart/form-data",
+            "payload": {
+                "malformed_file": {
+                    # Missing 'content' key, should be treated as form field
+                    "filename": "test.txt"
+                },
+                "description": "testing"
+            }
+        }
+
+        http_client.execute_request(
+            method="POST",
+            url="http://test.com/upload-bad",
+            parameters={},
+            request_body=request_body,
+            security_options=None,
+            source_name=None
+        )
+
+        mock_request.assert_called_once()
+        args, kwargs = mock_request.call_args
+        # No file entries should be present; 'files' may exist but be empty
+        assert 'files' in kwargs
+        assert kwargs['files'] == {}
+        # Data should include the entire dict as a field value
+        assert 'data' in kwargs
+        assert kwargs['data']['malformed_file'] == {"filename": "test.txt"}
+        assert kwargs['data']['description'] == "testing"
+
+
+if __name__ == "__main__":
+    pytest.main()
