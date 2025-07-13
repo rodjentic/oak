@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/debug_fixture.py
 """
 Debug script for Arazzo fixtures to understand any issues
 """

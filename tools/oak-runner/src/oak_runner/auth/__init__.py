@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/auth/__init__.py
 """
 Authentication utilities for OAK Runner.
 

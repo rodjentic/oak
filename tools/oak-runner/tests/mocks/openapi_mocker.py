@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/mocks/openapi_mocker.py
 """
 OpenAPI Mock Response Generator
 

@@ -1,3 +1,4 @@
+# src/oak_runner/auth/credentials/provider.py
 """
 Credential Provider System - A flexible, extensible credential management system
 with composite parts, fetch strategies, caching, and validation pipelines.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/extractor/openapi_extractor.py
 """
 OpenAPI Parameter and Response Extractor for OAK Runner
 

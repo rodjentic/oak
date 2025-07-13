@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/executor/__init__.py
 """
 Executor module for OAK Runner
 

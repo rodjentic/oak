@@ -1,3 +1,4 @@
+# tests/auth/credentials/test_provider.py
 import base64
 from unittest.mock import MagicMock
 

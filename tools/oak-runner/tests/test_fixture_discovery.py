@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/test_fixture_discovery.py
 """
 Automated Test Discovery for Arazzo Workflow Fixtures
 

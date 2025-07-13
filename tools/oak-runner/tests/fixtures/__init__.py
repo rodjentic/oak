@@ -1,3 +1,4 @@
+# tests/fixtures/__init__.py
 """
 Arazzo Workflow Test Fixtures
 

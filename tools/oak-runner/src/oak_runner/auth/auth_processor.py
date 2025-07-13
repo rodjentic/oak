@@ -1,3 +1,4 @@
+# src/oak_runner/auth/auth_processor.py
 """Authentication processor for the Jentic MCP Plugin.
 
 This module handles processing authentication requirements from OpenAPI specifications

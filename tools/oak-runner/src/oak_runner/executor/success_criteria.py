@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/executor/success_criteria.py
 """
 Success Criteria Checker for OAK Runner
 

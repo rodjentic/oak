@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/auth/test_auth_parser.py
 """Tests for the Arazzo authentication parser."""
 
 import os

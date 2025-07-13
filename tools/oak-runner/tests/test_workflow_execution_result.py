@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/test_workflow_execution_result.py
 """
 Tests for WorkflowExecutionResult and related functionality
 

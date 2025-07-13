@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/executor/output_extractor.py
 """
 Output Extractor for OAK Runner
 

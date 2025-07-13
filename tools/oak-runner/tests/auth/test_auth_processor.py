@@ -1,3 +1,4 @@
+# tests/auth/test_auth_processor.py
 """Tests for the auth processor module."""
 
 import unittest

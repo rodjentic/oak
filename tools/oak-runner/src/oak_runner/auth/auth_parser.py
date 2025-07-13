@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/auth/auth_parser.py
 """
 Authentication Parser for OAK Runner.
 

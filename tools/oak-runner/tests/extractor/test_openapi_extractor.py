@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/extractor/test_openapi_extractor.py
 """
 Tests for the OpenAPI Extractor module.
 """

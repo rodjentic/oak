@@ -1,4 +1,4 @@
-# Strategy pattern for credential fetching
+# src/oak_runner/auth/credentials/fetch.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import logging

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# tests/executor/test_execute_operation_with_server_vars.py
 """
 Tests for step_executor.py execute_operation function with server variables and path params
 """

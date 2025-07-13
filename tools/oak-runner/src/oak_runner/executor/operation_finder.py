@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# src/oak_runner/executor/operation_finder.py
 """
 Operation Finder for OAK Runner
 
