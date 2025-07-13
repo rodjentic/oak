@@ -125,7 +125,7 @@ setup: ## Create environment and install full development dependencies
 	@echo 'if ! command -v uv &> /dev/null; then' >> setup.sh
 	@echo '    echo "${RED}uv is not installed. Installing uv...${RESET}"' >> setup.sh
 	@echo '    curl -LsSf https://astral.sh/uv/install.sh | sh' >> setup.sh
-	@echo '    export PATH="$$HOME/.cargo/bin:$$PATH"' >> setup.sh
+	@echo '    export PATH="$HOME/.cargo/bin:$PATH"' >> setup.sh
 	@echo '    if ! command -v uv &> /dev/null; then' >> setup.sh
 	@echo '        echo "${RED}Failed to install uv. Please install manually: https://docs.astral.sh/uv/getting-started/installation/${RESET}"' >> setup.sh
 	@echo '        exit 1' >> setup.sh
