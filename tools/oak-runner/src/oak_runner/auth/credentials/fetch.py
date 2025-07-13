@@ -1,39 +1,34 @@
 # src/oak_runner/auth/credentials/fetch.py
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import logging
 import os
-import requests
-from typing import Dict, List
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
+import requests
+
+from oak_runner.auth.auth_parser import AuthLocation, AuthRequirement, AuthType, HttpSchemeType
 from oak_runner.auth.credentials.models import Credential
-from oak_runner.auth.auth_parser import (
-    AuthType, 
-    AuthLocation,
-    AuthRequirement,
-    HttpSchemeType
-)
 from oak_runner.auth.models import (
-    ApiKeyAuth, 
-    BasicAuth, 
-    BearerAuth, 
-    EnvVarKeys,
-    OAuth2AccessTokenOnly,
-    SecurityOption,
-    SecurityScheme,
-    AuthValue,
+    ApiKeyAuth,
     ApiKeyScheme,
-    HttpAuthScheme,
-    OAuth2Scheme,
-    OpenIDScheme,
+    AuthorizationCodeFlow,
+    AuthValue,
+    BasicAuth,
+    BearerAuth,
+    ClientCredentialsFlow,
     CustomScheme,
-    OAuth2Urls,
+    EnvVarKeys,
+    HttpAuthScheme,
+    ImplicitFlow,
+    OAuth2AccessTokenOnly,
     OAuth2Flows,
     OAuth2FlowType,
-    ImplicitFlow,
-    AuthorizationCodeFlow,
-    ClientCredentialsFlow,
-    PasswordFlow
+    OAuth2Scheme,
+    OAuth2Urls,
+    OpenIDScheme,
+    PasswordFlow,
+    SecurityOption,
+    SecurityScheme,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,50 +72,50 @@ class FetchStrategy(ABC):
     fetch_one(request, options)
         Retrieve credentials for a single ``SecurityOption`` instance.
     """
-    
+
     @abstractmethod
-    def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
+    def fetch(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
         """Fetch credential(s) based on requests."""
         raise NotImplementedError
-    
+
     @abstractmethod
-    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
+    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
         """Fetch credential(s) based on request."""
         raise NotImplementedError
 
 
 class EnvironmentVariableFetchStrategy(FetchStrategy):
     """Fetch credentials from environment variables."""
-    
+
     def __init__(
         self,
-        env_mapping: Dict[str, str] | None = None,
+        env_mapping: dict[str, str] | None = None,
         http_client: requests.Session | None = None,
-        auth_requirements: List[AuthRequirement] = None
+        auth_requirements: list[AuthRequirement] = None
     ):
-        self._env_mapping: Dict[str, str] = env_mapping or {}
+        self._env_mapping: dict[str, str] = env_mapping or {}
         self._http_client: requests.Session | None = http_client
-        self._auth_requirements: List[AuthRequirement] = auth_requirements or []
-        self._security_schemes: Dict[str, Dict[str, SecurityScheme]] = \
+        self._auth_requirements: list[AuthRequirement] = auth_requirements or []
+        self._security_schemes: dict[str, dict[str, SecurityScheme]] = \
             create_security_schemes_from_auth_requirements(self._auth_requirements)
 
-    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> List[Credential]:
+    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
         """
         Fetch credential from environment variable.
         """
         logger.debug(f"Fetching credential for {request=}")
         credentials = []
         source_name = options.source_name if options else "default"
-        
+
         for requirement in request.requirements:
             scheme_name = requirement.scheme_name
             logger.debug(f'Resolving auth scheme: {scheme_name} from source: {source_name}')
-            
+
             # Try to find the scheme using source description if available
             scheme = self._get_security_scheme(scheme_name, source_name)
             if not scheme:
                 continue
-            
+
             logger.debug(f'Found matching auth scheme: {scheme_name}')
             credentials.append(
                 Credential(
@@ -132,7 +127,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
 
         return credentials
 
-    def fetch(self, requests: List[SecurityOption], options: FetchOptions | None = None) -> List[Credential]:
+    def fetch(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
         """Fetch credential from environment variable."""
         # Fetch credentials for each request one at a time, as its going to the env
         # we dont need to batch this (but we could)
@@ -145,10 +140,10 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
     ###################### Private API ########################################
     ###########################################################################
     def _resolve_auth_value(
-        self, 
-        scheme_name: str, 
-        source_name: str | None = None, 
-        scopes: List[str] | None = None
+        self,
+        scheme_name: str,
+        source_name: str | None = None,
+        scopes: list[str] | None = None
     ) -> AuthValue | None:
         """
         Resolve authentication value for a security scheme.
@@ -162,10 +157,10 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             AuthValue if resolved, None otherwise
         """
         scheme = self._get_security_scheme(scheme_name, source_name)
-        
+
         if not scheme:
             return None
-            
+
         logger.debug(f"Resolving auth value for {scheme=}, {source_name=}, {scopes=}")
         if scheme.type == AuthType.API_KEY:
             logger.debug(f"Resolving API key for {scheme_name=}")
@@ -181,10 +176,10 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             scheme: HttpAuthScheme = scheme
             # Handle HTTP auth types based on scheme
             if scheme.scheme == HttpSchemeType.BEARER:
-                token = self._loadFromEnvironment(scheme_name, EnvVarKeys.TOKEN, source_name)  
+                token = self._loadFromEnvironment(scheme_name, EnvVarKeys.TOKEN, source_name)
                 if not token:
                     return None
-                        
+
                 return BearerAuth(
                     type=AuthType.HTTP,
                     token=token
@@ -194,7 +189,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 password = self._loadFromEnvironment(scheme_name, EnvVarKeys.PASSWORD, source_name)
                 if not username or not password:
                     return None
-                        
+
                 return BasicAuth(
                     type=AuthType.HTTP,
                     username=username,
@@ -205,7 +200,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 auth_value = self._loadFromEnvironment(scheme_name, EnvVarKeys.AUTH_VALUE, source_name)
                 if not auth_value:
                     return None
-                        
+
                 # Use BearerAuth as a fallback for generic HTTP auth
                 return BearerAuth(
                     type=AuthType.HTTP,
@@ -214,19 +209,19 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
 
         elif scheme.type == AuthType.OAUTH2:
             return self._resolve_oauth2_auth_value(scheme=scheme, scheme_name=scheme_name, source_name=source_name, scopes=scopes)
-            
+
         elif scheme.type == AuthType.OPENID:
             # For OpenID, check for ID token
-            id_token = self._loadFromEnvironment(scheme_name, EnvVarKeys.TOKEN, source_name)  
+            id_token = self._loadFromEnvironment(scheme_name, EnvVarKeys.TOKEN, source_name)
             if not id_token:
                 return None
-                    
+
             # Use OAuth2AccessTokenOnly for OpenID as well since they're similar
             return OAuth2AccessTokenOnly(
                 type=AuthType.OPENID,
                 access_token=id_token
             )
-            
+
         elif scheme.type == AuthType.CUSTOM:
             # For custom auth, we need to check the scheme name
             # This is a simplification - in a real implementation, we would need to know what key to use
@@ -234,21 +229,21 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             auth_value = self._loadFromEnvironment(scheme_name, scheme.name, source_name)
             if not auth_value:
                 return None
-                    
+
             # Use ApiKeyAuth as a fallback for custom auth
             return ApiKeyAuth(
                 type=AuthType.CUSTOM,
                 api_key=auth_value
             )
-            
+
         return None
 
     def _resolve_oauth2_auth_value(
-        self, 
-        scheme: OAuth2Scheme, 
-        scheme_name: str, 
-        source_name: str | None = None, 
-        scopes: List[str] | None = None
+        self,
+        scheme: OAuth2Scheme,
+        scheme_name: str,
+        source_name: str | None = None,
+        scopes: list[str] | None = None
     ) -> AuthValue | None:
         """
         Resolve authentication value for OAuth2 security scheme.
@@ -273,22 +268,22 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             flow_type = "password"
         else:
             flow_type = "default"
-        
+
         # Create modified scheme name based on the flow type
         modified_scheme_name = f"{scheme_name}.{flow_type}"
-        
+
         # Initialize access token
         access_token = None
-        
+
         # For client credentials flow, try to obtain a token dynamically first
         if flow_type == "clientCredentials" and scheme.flows.client_credentials:
             # Get client ID and secret from environment variables
             client_id = self._loadFromEnvironment(modified_scheme_name, EnvVarKeys.CLIENT_ID, source_name)
             client_secret = self._loadFromEnvironment(modified_scheme_name, EnvVarKeys.CLIENT_SECRET, source_name)
-            
+
             # Get token URL from the security scheme
             token_url = scheme.flows.client_credentials.token_url
-            
+
             if client_id and client_secret and token_url:
                 access_token = self._request_oauth_access_token(
                     token_url=token_url,
@@ -297,25 +292,25 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                     scopes=scopes,
                     scheme_name=scheme_name
                 )
-        
+
         # If we couldn't get a token dynamically, try to load a pre-configured one as fallback
         if not access_token:
             access_token = self._loadFromEnvironment(modified_scheme_name, EnvVarKeys.TOKEN, source_name)
 
         if not access_token:
             return None
-                
+
         return OAuth2AccessTokenOnly(
             type=AuthType.OAUTH2,
             access_token=access_token
         )
 
     def _request_oauth_access_token(
-        self, 
-        token_url: str, 
-        client_id: str, 
-        client_secret: str, 
-        scopes: List[str] | None = None,
+        self,
+        token_url: str,
+        client_id: str,
+        client_secret: str,
+        scopes: list[str] | None = None,
         scheme_name: str = ""
     ) -> str | None:
         """
@@ -337,7 +332,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "application/json"
             }
-            
+
             data = {
                 "grant_type": "client_credentials",
                 "client_id": client_id,
@@ -348,14 +343,14 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             if scopes:
                 scopes_str = " ".join(scopes)
                 data["scope"] = scopes_str
-            
+
             # Make the token request
             response = self._http_client.post(token_url, headers=headers, data=data)
-            
+
             if response.status_code == 200:
                 token_data = response.json()
                 access_token = token_data.get("access_token")
-                
+
                 # Log success but not the actual token
                 logger.info(f"Successfully obtained OAuth2 access token for {scheme_name}")
                 return access_token
@@ -363,13 +358,13 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 logger.warning(f"Failed to obtain OAuth2 access token: {response.status_code} {response.text}")
         except Exception as e:
             logger.error(f"Error obtaining OAuth2 access token: {str(e)}")
-            
+
         return None
 
     def _loadFromEnvironment(
-        self, 
-        scheme_name: str, 
-        mapping_key: str, 
+        self,
+        scheme_name: str,
+        mapping_key: str,
         source_name: str | None = None
     ) -> str | None:
         """
@@ -421,17 +416,17 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
         if source_name and source_name in self._security_schemes:
             if scheme_name in self._security_schemes[source_name]:
                 return self._security_schemes[source_name][scheme_name]
-        
+
         # If not found with source name or no source name provided,
         # try to find the scheme in any source
         for _source, schemes in self._security_schemes.items():
             if scheme_name in schemes:
                 return schemes[scheme_name]
-                
+
         return None
 
 
-def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthRequirement]) -> Dict[str, Dict[str, SecurityScheme]]:
+def create_security_schemes_from_auth_requirements(auth_requirements: list[AuthRequirement]) -> dict[str, dict[str, SecurityScheme]]:
     """
     Convert AuthRequirement dictionaries to SecurityScheme objects.
     
@@ -443,21 +438,21 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
         scheme_name = req.get("security_scheme_name")
         if not scheme_name:
             continue
-            
+
         auth_type = req.get("type")
         if not auth_type:
             continue
-        
+
         # Get the source description, defaulting to a generic value if not available
         source_description = req.get("source_description_id", "default")
-        
+
         # Initialize the source description dictionary if it doesn't exist
         if source_description not in security_schemes:
             security_schemes[source_description] = {}
-            
+
         # Check if we already have a scheme with this name for this source
         existing_scheme = security_schemes[source_description].get(scheme_name)
-        
+
         # Create the appropriate SecurityScheme based on auth_type
         if auth_type == AuthType.API_KEY:
             # Create API Key scheme
@@ -468,7 +463,7 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                 location=req.get("location", AuthLocation.HEADER),
                 parameter_name=req.get("name", "")
             )
-            
+
         elif auth_type == AuthType.HTTP:
             # Create HTTP scheme
             scheme = HttpAuthScheme(
@@ -477,7 +472,7 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                 description=req.get("description"),
                 scheme=req.get("schemes", ["bearer"])[0] if req.get("schemes") else "bearer"
             )
-            
+
         elif auth_type == AuthType.OAUTH2:
             # Create OAuth2 URLs
             auth_urls = req.get("auth_urls", {})
@@ -486,16 +481,16 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                 token=auth_urls.get("token"),
                 refresh=auth_urls.get("refresh")
             )
-            
+
             # If we already have an OAuth2 scheme, we'll merge the flows
             if existing_scheme and existing_scheme.type == AuthType.OAUTH2:
                 # Use the existing scheme and just update its flows
                 scheme = existing_scheme
-                
+
                 # Create OAuth2 flows based on flow_type
                 flow_type = req.get("flow_type")
                 scopes_dict = {scope: f"Scope: {scope}" for scope in req.get("scopes", [])}
-                
+
                 # Update the appropriate flow based on flow_type
                 if flow_type == OAuth2FlowType.IMPLICIT:
                     # Create implicit flow
@@ -503,14 +498,14 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                         scopes=scopes_dict,
                         authorization_url=oauth2_urls.authorization or ""
                     )
-                    
+
                 elif flow_type == OAuth2FlowType.CLIENT_CREDENTIALS:
                     # Create client credentials flow
                     scheme.flows.client_credentials = ClientCredentialsFlow(
                         scopes=scopes_dict,
                         token_url=oauth2_urls.token or ""
                     )
-                    
+
                 elif flow_type == OAuth2FlowType.AUTHORIZATION_CODE:
                     # Create authorization code flow
                     scheme.flows.authorization_code = AuthorizationCodeFlow(
@@ -519,38 +514,38 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                         token_url=oauth2_urls.token or "",
                         refresh_url=oauth2_urls.refresh
                     )
-                    
+
                 elif flow_type == OAuth2FlowType.PASSWORD:
                     # Create password flow
                     scheme.flows.password = PasswordFlow(
                         scopes=scopes_dict,
                         token_url=oauth2_urls.token or ""
                     )
-                
+
                 # Skip adding the scheme since we're just updating the existing one
                 continue
             else:
                 # Create a new OAuth2 scheme
-                
+
                 # Create OAuth2 flows based on flow_type
                 flows = OAuth2Flows()
                 flow_type = req.get("flow_type")
                 scopes_dict = {scope: f"Scope: {scope}" for scope in req.get("scopes", [])}
-                
+
                 if flow_type == OAuth2FlowType.IMPLICIT:
                     # Create implicit flow
                     flows.implicit = ImplicitFlow(
                         scopes=scopes_dict,
                         authorization_url=oauth2_urls.authorization or ""
                     )
-                    
+
                 elif flow_type == OAuth2FlowType.CLIENT_CREDENTIALS:
                     # Create client credentials flow
                     flows.client_credentials = ClientCredentialsFlow(
                         scopes=scopes_dict,
                         token_url=oauth2_urls.token or ""
                     )
-                    
+
                 elif flow_type == OAuth2FlowType.AUTHORIZATION_CODE:
                     # Create authorization code flow
                     flows.authorization_code = AuthorizationCodeFlow(
@@ -559,14 +554,14 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                         token_url=oauth2_urls.token or "",
                         refresh_url=oauth2_urls.refresh
                     )
-                    
+
                 elif flow_type == OAuth2FlowType.PASSWORD:
                     # Create password flow
                     flows.password = PasswordFlow(
                         scopes=scopes_dict,
                         token_url=oauth2_urls.token or ""
                     )
-                    
+
                 # Create the OAuth2 scheme with the flows
                 scheme = OAuth2Scheme(
                     type=AuthType.OAUTH2,
@@ -574,7 +569,7 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                     description=req.get("description"),
                     flows=flows
                 )
-            
+
         elif auth_type == AuthType.OPENID:
             # Create OpenID scheme
             scheme = OpenIDScheme(
@@ -583,7 +578,7 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                 description=req.get("description"),
                 openid_connect_url=req.get("openid_connect_url", "")
             )
-            
+
         else:
             # Create custom scheme
             scheme = CustomScheme(
@@ -591,7 +586,7 @@ def create_security_schemes_from_auth_requirements(auth_requirements: List[AuthR
                 name=req.get("name", ""),
                 description=req.get("description")
             )
-            
+
         security_schemes[source_description][scheme_name] = scheme
-        
+
     return security_schemes

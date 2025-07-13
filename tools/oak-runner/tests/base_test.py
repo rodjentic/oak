@@ -15,7 +15,7 @@ from typing import Any, Literal
 
 import yaml
 
-from oak_runner import OAKRunner, StepStatus, WorkflowExecutionStatus, WorkflowExecutionResult
+from oak_runner import OAKRunner, StepStatus, WorkflowExecutionResult, WorkflowExecutionStatus
 
 from .mocks import MockHTTPExecutor, OpenAPIMocker
 from .mocks.real_http_client import RealHTTPExecutor

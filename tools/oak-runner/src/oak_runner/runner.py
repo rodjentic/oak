@@ -7,22 +7,36 @@ workflow specification. It builds an execution tree based on the possible paths 
 executes OpenAPI operations sequentially, handling success/failure conditions and flow control.
 """
 
+import json
 import logging
 from collections.abc import Callable
-import json
-from typing import Any, Optional, Dict
+from typing import Any
+
 import requests
 
 from .auth.auth_processor import AuthProcessor
+from .auth.credentials.provider import CredentialProvider, CredentialProviderFactory
 from .evaluator import ExpressionEvaluator
 from .executor import StepExecutor
+from .executor.server_processor import ServerProcessor
 from .http import HTTPExecutor
 from .models import (
-    ActionType, ArazzoDoc, ExecutionState, OpenAPIDoc, StepStatus, WorkflowExecutionStatus, WorkflowExecutionResult, RuntimeParams
+    ActionType,
+    ArazzoDoc,
+    ExecutionState,
+    OpenAPIDoc,
+    RuntimeParams,
+    StepStatus,
+    WorkflowExecutionResult,
+    WorkflowExecutionStatus,
 )
-from .utils import dump_state, load_arazzo_doc, load_source_descriptions, load_openapi_file, deprecated
-from .auth.credentials.provider import CredentialProviderFactory, CredentialProvider
-from .executor.server_processor import ServerProcessor
+from .utils import (
+    deprecated,
+    dump_state,
+    load_arazzo_doc,
+    load_openapi_file,
+    load_source_descriptions,
+)
 
 logger = logging.getLogger("arazzo-runner")
 
@@ -35,10 +49,10 @@ class OAKRunner:
 
     def __init__(
         self,
-        arazzo_doc: Optional[ArazzoDoc] = None,
+        arazzo_doc: ArazzoDoc | None = None,
         source_descriptions: dict[str, OpenAPIDoc] = None,
         http_client=None,
-        auth_provider: Optional[CredentialProvider] = None
+        auth_provider: CredentialProvider | None = None
     ):
         """
         Initialize the runner with Arazzo document and source descriptions
@@ -127,8 +141,8 @@ class OAKRunner:
         return cls(
             arazzo_doc=None,
             source_descriptions=source_descriptions,
-            http_client=None, 
-            auth_provider=None    
+            http_client=None,
+            auth_provider=None
         )
 
     def register_callback(self, event_type: str, callback: Callable):
@@ -152,7 +166,7 @@ class OAKRunner:
             except Exception as e:
                 logger.error(f"Error in {event_type} callback: {e}")
 
-    def start_workflow(self, workflow_id: str, inputs: Optional[Dict[str, Any]] = None, runtime_params: Optional[RuntimeParams] = None) -> str:
+    def start_workflow(self, workflow_id: str, inputs: dict[str, Any] | None = None, runtime_params: RuntimeParams | None = None) -> str:
         """
         Start a new workflow execution
 
@@ -246,7 +260,7 @@ class OAKRunner:
         self,
         workflow_id: str,
         inputs: dict[str, Any] = None,
-        runtime_params: Optional[RuntimeParams] = None
+        runtime_params: RuntimeParams | None = None
     ) -> WorkflowExecutionResult:
         """
         Start and execute a workflow until completion, returning the outputs.
@@ -283,14 +297,14 @@ class OAKRunner:
         self.register_callback("workflow_complete", on_workflow_complete)
 
         execution_id = self.start_workflow(workflow_id, inputs, runtime_params)
-        
+
         while True:
             result = self.execute_next_step(execution_id)
-            
+
             if result.get("status") in [WorkflowExecutionStatus.WORKFLOW_COMPLETE, WorkflowExecutionStatus.ERROR]:
                 # Get the execution state to access step outputs
                 state = self.execution_states[execution_id]
-                
+
                 # Convert the dictionary result to a WorkflowExecutionResult object
                 execution_result = WorkflowExecutionResult(
                     status=result["status"],
@@ -580,9 +594,9 @@ class OAKRunner:
     def execute_operation(
         self,
         inputs: dict[str, Any],
-        operation_id: Optional[str] = None,
-        operation_path: Optional[str] = None,
-        runtime_params: Optional[RuntimeParams] = None,
+        operation_id: str | None = None,
+        operation_path: str | None = None,
+        runtime_params: RuntimeParams | None = None,
     ) -> dict:
         """
         Execute a single API operation directly, outside of a workflow context.
@@ -651,7 +665,7 @@ class OAKRunner:
             auth_mappings = self.auth_provider.env_mappings
         except AttributeError:
             auth_mappings = {}
-        
+
         # Get authentication environment mappings via the EnvironmentVariableFetchStrategy
         try:
             auth_mappings = self.auth_provider.strategy._env_mapping
@@ -659,18 +673,18 @@ class OAKRunner:
             auth_mappings = {}
 
         result = {"auth": auth_mappings}
-        
+
         # Get server variable environment mappings
         server_mappings = self.step_executor.server_processor.get_env_mappings()
         # Only include server mappings if they exist
         if server_mappings:
             result["servers"] = server_mappings
-        
+
         return result
 
     @staticmethod
     def generate_env_mappings(
-        arazzo_docs: Optional[list["ArazzoDoc"]] = None,
+        arazzo_docs: list["ArazzoDoc"] | None = None,
         source_descriptions: dict[str, "OpenAPIDoc"] = None,
     ) -> dict:
         """

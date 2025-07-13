@@ -5,14 +5,19 @@ Tests for the HTTP Client in OAK Runner
 This file contains tests for the HTTPExecutor class in the OAK Runner library,
 with a focus on authentication handling.
 """
-import pytest
-from unittest.mock import Mock
 import logging
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+import requests
 
 from oak_runner.auth.credentials.models import Credential
-import requests
-from unittest.mock import patch, MagicMock
-from oak_runner.auth.models import SecurityOption, SecurityRequirement, RequestAuthValue, AuthLocation
+from oak_runner.auth.models import (
+    AuthLocation,
+    RequestAuthValue,
+    SecurityOption,
+    SecurityRequirement,
+)
 from oak_runner.http import HTTPExecutor
 
 logger = logging.getLogger(__name__)
@@ -324,7 +329,7 @@ def mock_get_credentials(request, options) -> list[Credential]:
                     auth_value="api1-key-value"
                 )
             )
-        
+
     cred2 = Credential(
                 id="test-credential-auth-id",
                 request_auth_value=RequestAuthValue(
@@ -333,7 +338,7 @@ def mock_get_credentials(request, options) -> list[Credential]:
                     auth_value="api2-key-value"
                 )
             )
-        
+
     if options.source_name == "api1":
         return [cred1]
     elif options.source_name == "api2":
@@ -390,7 +395,7 @@ def test_execute_request_multipart(http_client: HTTPExecutor):
             "description": "A test file"
         }
     }
-        
+
     with patch('requests.Session.request', return_value=mock_response) as mock_request:
         http_client.execute_request(
             method="POST",
@@ -418,7 +423,7 @@ def test_execute_request_json_body(http_client: HTTPExecutor):
     mock_response.status_code = 200
     mock_response.headers = {'Content-Type': 'application/json'}
     mock_response.json.return_value = {'status': 'ok'}
-    
+
     request_body = {
         "contentType": "application/json",
         "payload": {"key": "value"}
@@ -433,7 +438,7 @@ def test_execute_request_json_body(http_client: HTTPExecutor):
             security_options=None,
             source_name=None
         )
-        
+
         mock_request.assert_called_once()
         args, kwargs = mock_request.call_args
         assert kwargs['json'] == {"key": "value"}
@@ -447,7 +452,7 @@ def test_execute_request_form_body(http_client: HTTPExecutor):
     mock_response.headers = {}
     mock_response.json.side_effect = ValueError # no json
     mock_response.text = "Success"
-    
+
     request_body = {
         "contentType": "application/x-www-form-urlencoded",
         "payload": {"key": "value"}
@@ -476,7 +481,7 @@ def test_execute_request_raw_body(http_client: HTTPExecutor):
     mock_response.headers = {}
     mock_response.json.side_effect = ValueError
     mock_response.text = "OK"
-    
+
     request_body = {
         "contentType": "text/plain",
         "payload": "this is raw text"
@@ -596,7 +601,7 @@ def test_execute_request_no_content_type_sends_raw_bytes(http_client: HTTPExecut
             security_options=None,
             source_name=None
         )
-        
+
         mock_request.assert_called_once()
         args, kwargs = mock_request.call_args
         assert kwargs['data'] == b"raw data"
@@ -616,7 +621,7 @@ def test_execute_request_multipart_with_raw_bytes_fallback(http_client: HTTPExec
                 "description": "A test file"
             }
         }
-        
+
         http_client.execute_request(
             method="POST",
             url="http://test.com/upload",

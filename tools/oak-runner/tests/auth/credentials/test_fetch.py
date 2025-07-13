@@ -1,10 +1,10 @@
 # tests/auth/credentials/test_fetch.py
 from oak_runner.auth.credentials.fetch import EnvironmentVariableFetchStrategy
 from oak_runner.auth.models import (
+    AuthType,
+    EnvVarKeys,
     SecurityOption,
     SecurityRequirement,
-    EnvVarKeys,
-    AuthType,
 )
 
 
@@ -88,4 +88,4 @@ def test_environment_variable_missing_key():
     credentials = strategy.fetch([security_option])
 
     assert len(credentials) == 1
-    assert credentials[0].auth_value is None, "Auth value should be None when env var is absent"  
+    assert credentials[0].auth_value is None, "Auth value should be None when env var is absent"

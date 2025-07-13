@@ -6,7 +6,6 @@ Tests for environment variable mappings in OAK Runner
 import unittest
 from unittest.mock import MagicMock, patch
 
-from oak_runner.models import ServerConfiguration, ServerVariable
 from oak_runner.runner import OAKRunner
 
 
@@ -52,7 +51,6 @@ class TestEnvMappings(unittest.TestCase):
         }
 
         # Patch AuthProcessor.process_api_auth to return deterministic auth mappings
-        from unittest.mock import patch
         with patch("oak_runner.runner.AuthProcessor.process_api_auth") as mock_auth:
             mock_auth.return_value = {"env_mappings": mock_auth_provider.env_mappings}
             env_mappings = OAKRunner.generate_env_mappings(arazzo_docs=[], source_descriptions=mock_openapi_specs)
@@ -64,16 +62,16 @@ class TestEnvMappings(unittest.TestCase):
         # Verify server mappings are included
         self.assertIn("servers", env_mappings)
         self.assertIn("test_api", env_mappings["servers"])
-        
+
         # Verify the server URL mapping
         server_url = "https://{environment}.api.example.com/v{version}"
         self.assertIn(server_url, env_mappings["servers"]["test_api"])
-        
+
         # Verify the variable mappings
         server_vars = env_mappings["servers"]["test_api"][server_url]
         self.assertIn("environment", server_vars)
         self.assertIn("version", server_vars)
-        
+
         # Verify the environment variable names
         self.assertEqual(server_vars["environment"], "TEST_OAK_SERVER_ENVIRONMENT")
         self.assertEqual(server_vars["version"], "TEST_OAK_SERVER_VERSION")
@@ -114,7 +112,7 @@ class TestEnvMappings(unittest.TestCase):
 
         # Verify servers key is NOT included
         self.assertNotIn("servers", env_mappings)
-        
+
     def test_get_env_mappings_includes_multiple_api_specs(self):
         """Test that get_env_mappings includes server variables from multiple API specs"""
         # Create mock OpenAPI specs with different server variables
@@ -193,7 +191,6 @@ class TestEnvMappings(unittest.TestCase):
         }
 
         # Patch AuthProcessor.process_api_auth to return deterministic auth mappings
-        from unittest.mock import patch
         with patch("oak_runner.runner.AuthProcessor.process_api_auth") as mock_auth:
             mock_auth.return_value = {"env_mappings": mock_auth_provider.env_mappings}
             env_mappings = OAKRunner.generate_env_mappings(
@@ -207,11 +204,11 @@ class TestEnvMappings(unittest.TestCase):
 
             # Verify server mappings are included
             self.assertIn("servers", env_mappings)
-            
+
             # Verify both API specs are included in server mappings
             self.assertIn("payment_api", env_mappings["servers"])
             self.assertIn("user_api", env_mappings["servers"])
-            
+
             # Verify payment_api server variables
             payment_server_url = "https://{environment}.payments.example.com/v{version}"
             self.assertIn(payment_server_url, env_mappings["servers"]["payment_api"])
@@ -220,7 +217,7 @@ class TestEnvMappings(unittest.TestCase):
             self.assertIn("version", payment_vars)
             self.assertEqual(payment_vars["environment"], "PAYMENT_OAK_SERVER_ENVIRONMENT")
             self.assertEqual(payment_vars["version"], "PAYMENT_OAK_SERVER_VERSION")
-            
+
             # Verify user_api server variables
             user_server_url = "https://{region}.users.example.com"
             self.assertIn(user_server_url, env_mappings["servers"]["user_api"])

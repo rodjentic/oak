@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 import jsonpointer
+
 from oak_runner.auth.models import SecurityOption, SecurityRequirement
 
 # Configure logging
@@ -150,7 +151,7 @@ class OperationFinder:
         if len(template_segments) != len(concrete_segments):
             return False
 
-        for template_seg, concrete_seg in zip(template_segments, concrete_segments):
+        for template_seg, concrete_seg in zip(template_segments, concrete_segments, strict=False):
             if template_seg.startswith('{') and template_seg.endswith('}'):
                 continue  # Variable segment matches anything
             if template_seg != concrete_seg:

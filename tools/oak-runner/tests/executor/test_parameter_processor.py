@@ -1,6 +1,7 @@
 # tests/executor/test_parameter_processor.py
 import unittest
 from unittest.mock import MagicMock
+
 from oak_runner.executor.parameter_processor import ParameterProcessor
 
 # Mock operation details structures
@@ -382,9 +383,9 @@ class TestParameterProcessorOperation(unittest.TestCase):
     def test_prepare_multipart_form_body(self):
         """Test preparing a multipart/form-data request body with a file."""
         inputs = {"file": b"file content", "description": "this is a file"}
-        
+
         result = self.processor.prepare_operation_parameters(MOCK_OP_DETAILS_BODY_MULTIPART, inputs)
-        
+
         expected_body = {
             "contentType": "multipart/form-data",
             "payload": {
@@ -402,9 +403,9 @@ class TestParameterProcessorOperation(unittest.TestCase):
     def test_prepare_multipart_form_body_with_bytearray(self):
         """Test preparing multipart/form-data with a bytearray."""
         inputs = {"file": bytearray(b"file content"), "description": "a bytearray file"}
-        
+
         result = self.processor.prepare_operation_parameters(MOCK_OP_DETAILS_BODY_MULTIPART, inputs)
-        
+
         expected_body = {
             "contentType": "multipart/form-data",
             "payload": {
@@ -426,7 +427,7 @@ class TestParameterProcessorOperation(unittest.TestCase):
             "file_bytearray": bytearray(b"this is bytearray"),
             "description": "mixed payload"
         }
-        
+
         # We need a mock spec that defines all these fields
         mock_spec = {
             "source": "testApi",

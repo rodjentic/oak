@@ -14,7 +14,7 @@ import unittest
 import yaml
 
 # Use the new namespace for imports
-from oak_runner import OAKRunner, ExecutionState, StepStatus, WorkflowExecutionStatus
+from oak_runner import ExecutionState, OAKRunner, StepStatus, WorkflowExecutionStatus
 
 
 class MockHTTPExecutor:

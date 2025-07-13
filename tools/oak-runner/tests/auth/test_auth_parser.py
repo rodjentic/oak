@@ -308,7 +308,7 @@ class TestAuthParser(unittest.TestCase):
             "security": [
                 {"apiKeyAuth": []},
                 {"bearerAuth": []},
-                {"oauthImplicit": ["r"]}, 
+                {"oauthImplicit": ["r"]},
                 {"openIdAuth": []}
             ]
         }

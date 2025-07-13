@@ -130,12 +130,12 @@ def extract_fixture_auth_requirements(
                     openapi_spec = yaml.safe_load(f)
 
                 spec_auth_reqs = extract_auth_from_openapi(openapi_spec)
-                
+
                 # Set the source_description_id for each requirement
                 source_id = os.path.basename(openapi_path)
                 for req in spec_auth_reqs:
                     req.source_description_id = source_id
-                    
+
                 auth_requirements.extend(spec_auth_reqs)
 
                 if spec_auth_reqs:

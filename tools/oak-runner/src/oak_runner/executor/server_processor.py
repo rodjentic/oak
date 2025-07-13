@@ -2,17 +2,17 @@
 """
 ServerProcessor: Handles server configuration and URL resolution logic for OAK Runner.
 """
-from typing import Any, Dict, List, Optional
-import re
-import os
-from urllib.parse import urlparse, urljoin
-from ..models import ServerConfiguration
-
 import logging
+import os
+import re
+from typing import Any
+from urllib.parse import urljoin, urlparse
+
+from ..models import ServerConfiguration
 
 logger = logging.getLogger("oak_runner.server_processor")
 
-from ..utils import extract_api_title_prefix, create_env_var_name
+from ..utils import create_env_var_name, extract_api_title_prefix
 
 
 class ServerProcessor:
@@ -23,7 +23,7 @@ class ServerProcessor:
         self.source_descriptions = source_descriptions
 
     @staticmethod
-    def resolve_server_base_url(server_config: ServerConfiguration, server_runtime_params: Optional[Dict[str, str]] = None) -> str:
+    def resolve_server_base_url(server_config: ServerConfiguration, server_runtime_params: dict[str, str] | None = None) -> str:
         """
         Resolves the templated server URL using provided parameters, environment variables,
         or default values for a given ServerConfiguration.
@@ -55,7 +55,7 @@ class ServerProcessor:
                     f"definition in server variables. This may indicate an invalid OpenAPI document."
                 )
 
-            resolved_value: Optional[str] = None
+            resolved_value: str | None = None
 
             # Construct the environment variable name using the utility function
             prefix = f"{server_config.api_title_prefix}_OAK_SERVER" if server_config.api_title_prefix else "OAK_SERVER"
@@ -69,7 +69,7 @@ class ServerProcessor:
                 resolved_value = server_runtime_params[env_var_name]
                 if resolved_value is not None:
                     logger.debug(f"Server variable '{var_name}' (using key '{env_var_name}'): resolved from runtime_params.")
-            
+
             # 2. Else, if not resolved from runtime_params (or if value was None), try os.getenv
             if resolved_value is None:
                 env_os_value = os.getenv(env_var_name)
@@ -113,14 +113,14 @@ class ServerProcessor:
         Returns:
             A list of ServerConfiguration objects parsed from the spec.
         """
-        logger.debug('extracting server confs...')    
+        logger.debug('extracting server confs...')
         server_configs: list[ServerConfiguration] = []
         api_title = spec_dict.get('info', {}).get('title')
         api_title_prefix = extract_api_title_prefix(api_title) if api_title else None
         raw_server_list = spec_dict.get('servers', [])
         if not isinstance(raw_server_list, list):
             logger.warning("'servers' field in OpenAPI spec is not a list. Skipping server configuration parsing.")
-            return []    
+            return []
         for i, server_data in enumerate(raw_server_list):
             if not isinstance(server_data, dict):
                 logger.warning(f"Server entry at index {i} is not a dictionary. Skipping this entry.")
@@ -161,7 +161,7 @@ class ServerProcessor:
         details.append(f"Server URL Template: {config.url_template}")
         if config.description:
             details.append(f"  Description: {config.description}")
-        
+
         if config.api_title_prefix:
             details.append(f"  (Associated API Title Prefix for ENV VARS: {config.api_title_prefix})")
 
@@ -173,7 +173,7 @@ class ServerProcessor:
                 details.append(f"    - Variable: '{var_name}'")
                 if var_details.description:
                     details.append(f"      Description: {var_details.description}")
-                
+
                 prefix = f"{config.api_title_prefix}_OAK_SERVER" if config.api_title_prefix else "OAK_SERVER"
                 env_var_name = create_env_var_name(
                     var_name=var_name,
@@ -184,17 +184,17 @@ class ServerProcessor:
                 if var_details.default_value is not None:
                     details.append(f"      Default: '{var_details.default_value}'")
                 else:
-                    details.append(f"      Default: (none)")
+                    details.append("      Default: (none)")
 
                 if var_details.enum_values:
                     details.append(f"      Possible Values: {', '.join(var_details.enum_values)}")
                 else:
-                    details.append(f"      Possible Values: (any)")
-        
+                    details.append("      Possible Values: (any)")
+
         return "\n".join(details)
 
     @staticmethod
-    def url_contains_template_vars_in_host(url_string: Optional[str]) -> bool:
+    def url_contains_template_vars_in_host(url_string: str | None) -> bool:
         if not url_string:
             return False
         parsed_url = urlparse(url_string)
@@ -203,7 +203,7 @@ class ServerProcessor:
                 return True
         return False
 
-    def get_env_mappings(self) -> Dict[str, Dict[str, Dict[str, str]]]:
+    def get_env_mappings(self) -> dict[str, dict[str, dict[str, str]]]:
         """
         Extract environment variable mappings for all server variables across all source descriptions.
         
@@ -219,30 +219,30 @@ class ServerProcessor:
             }
         """
         env_mappings = {}
-        
+
         # Process each source description
         for source_name, spec_dict in self.source_descriptions.items():
             # Extract server configurations for this source
             server_configs = self.extract_server_configurations(spec_dict)
-            
+
             if not server_configs:
                 continue
-                
+
             # Initialize the mapping for this source
             source_mappings = {}
-            
+
             # Process each server configuration
             for i, server_config in enumerate(server_configs):
                 # Use URL template as the key for this server
                 server_url = server_config.url_template
-                
+
                 # Skip servers without variables
                 if not server_config.variables:
                     continue
-                
+
                 # Initialize the mapping for this server
                 server_mappings = {}
-                
+
                 # Process each variable in this server configuration
                 for var_name, var_details in server_config.variables.items():
                     # Create the environment variable name
@@ -251,24 +251,24 @@ class ServerProcessor:
                         var_name=var_name,
                         prefix=prefix
                     )
-                    
+
                     # Store the mapping
                     server_mappings[var_name] = env_var_name
-                
+
                 # Only add this server if it has variables
                 if server_mappings:
                     source_mappings[server_url] = server_mappings
-            
+
             # Only add this source if it has servers with variables
             if source_mappings:
                 env_mappings[source_name] = source_mappings
-        
+
         return env_mappings
 
     def resolve_server_params(
         self,
-        operation_url_template: Optional[str],
-        server_runtime_params: Optional[Dict[str, str]],
+        operation_url_template: str | None,
+        server_runtime_params: dict[str, str] | None,
         source_name: str,
     ) -> str:
         """Resolve the final URL for an operation, including server variable resolution.
@@ -295,12 +295,12 @@ class ServerProcessor:
             logger.error(f"No source_name provided. Cannot resolve URL '{operation_url_template}' which requires server configuration.")
             raise ValueError(f"Cannot resolve URL '{operation_url_template}': source_name is required to load server configurations.")
 
-        spec_doc: Optional[Any] = self.source_descriptions.get(source_name)
+        spec_doc: Any | None = self.source_descriptions.get(source_name)
         if not spec_doc:
             logger.error(f"Spec not found for source_name='{source_name}'. Cannot resolve URL '{operation_url_template}'.")
             raise ValueError(f"Cannot resolve URL '{operation_url_template}': OpenAPI spec for source '{source_name}' not found.")
 
-        server_configs: List[ServerConfiguration] = ServerProcessor.extract_server_configurations(spec_doc)
+        server_configs: list[ServerConfiguration] = ServerProcessor.extract_server_configurations(spec_doc)
         if not server_configs:
             logger.error(f"No server configurations found in spec for source_name='{source_name}'. Cannot resolve URL '{operation_url_template}'.")
             raise ValueError(f"Cannot resolve URL '{operation_url_template}': No server configurations found in spec for '{source_name}'.")

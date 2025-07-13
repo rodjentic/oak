@@ -3,10 +3,10 @@
 
 import unittest
 
-from oak_runner.auth.auth_parser import AuthType, AuthLocation, AuthRequirement
-from oak_runner.auth.models import EnvVarKeys
+from oak_runner.auth.auth_parser import AuthLocation, AuthRequirement, AuthType
 from oak_runner.auth.auth_processor import AuthProcessor
-from oak_runner.utils import sanitize_for_env_var, create_env_var_name
+from oak_runner.auth.models import EnvVarKeys
+from oak_runner.utils import create_env_var_name, sanitize_for_env_var
 
 
 class TestAuthProcessor(unittest.TestCase):
@@ -84,8 +84,8 @@ class TestAuthProcessor(unittest.TestCase):
         """Test generating environment variable mappings."""
         # Create mock auth requirements
         api_key_req = AuthRequirement(
-            auth_type=AuthType.API_KEY, 
-            name="x-api-key", 
+            auth_type=AuthType.API_KEY,
+            name="x-api-key",
             location=AuthLocation.HEADER,
             security_scheme_name="ApiKey",
             api_title="Test API"
@@ -100,8 +100,8 @@ class TestAuthProcessor(unittest.TestCase):
         )
 
         basic_req = AuthRequirement(
-            auth_type=AuthType.HTTP, 
-            name="basic_auth", 
+            auth_type=AuthType.HTTP,
+            name="basic_auth",
             schemes=["basic"],
             security_scheme_name="BasicAuth",
             api_title="Test API"
@@ -184,8 +184,8 @@ class TestAuthProcessor(unittest.TestCase):
         for api_title in test_cases:
             # Create a simple auth requirement with the API title
             api_key_req = AuthRequirement(
-                auth_type=AuthType.API_KEY, 
-                name="x-api-key", 
+                auth_type=AuthType.API_KEY,
+                name="x-api-key",
                 location=AuthLocation.HEADER,
                 security_scheme_name="ApiKey",
                 api_title=api_title
@@ -213,7 +213,7 @@ class TestAuthProcessor(unittest.TestCase):
     def test_api_title_prefix_in_env_mappings(self):
         """Test that API title is used as prefix in environment variable mappings when available."""
         from oak_runner.auth.auth_parser import AuthLocation, AuthRequirement
-        
+
         # Create auth requirements with different API titles
         req_with_title = AuthRequirement(
             auth_type=AuthType.API_KEY,
@@ -222,7 +222,7 @@ class TestAuthProcessor(unittest.TestCase):
             security_scheme_name="ApiKey",
             api_title="Discord API"  # This should be used for prefix
         )
-        
+
         req_without_title = AuthRequirement(
             auth_type=AuthType.API_KEY,
             name="api-token",
@@ -230,15 +230,15 @@ class TestAuthProcessor(unittest.TestCase):
             security_scheme_name="TokenKey"
             # No api_title
         )
-        
+
         # Test with auth requirements
         mappings = self.auth_processor.generate_env_mappings([req_with_title, req_without_title])
-        
+
         # Check that API title is used for prefix when available
         self.assertIn("ApiKey", mappings)
         self.assertIn(EnvVarKeys.API_KEY, mappings["ApiKey"])
         self.assertEqual(mappings["ApiKey"][EnvVarKeys.API_KEY], "DISCORD_APIKEY")
-        
+
         # Check that no prefix is used when API title is not available
         self.assertIn("TokenKey", mappings)
         self.assertIn(EnvVarKeys.API_KEY, mappings["TokenKey"])
@@ -250,14 +250,14 @@ class TestAuthProcessor(unittest.TestCase):
         """Test generating environment variable mappings with multiple source descriptions."""
         # Create mock auth requirements from different sources
         source1_api_key_req = AuthRequirement(
-            auth_type=AuthType.API_KEY, 
-            name="x-api-key", 
+            auth_type=AuthType.API_KEY,
+            name="x-api-key",
             location=AuthLocation.HEADER,
             security_scheme_name="ApiKey",
             api_title="Source1 API",
             source_description_id="source1"
         )
-        
+
         source1_oauth2_req = AuthRequirement(
             auth_type=AuthType.OAUTH2,
             name="oauth2",
@@ -266,55 +266,55 @@ class TestAuthProcessor(unittest.TestCase):
             api_title="Source1 API",
             source_description_id="source1"
         )
-        
+
         # Same scheme name as source1 but from a different source
         source2_api_key_req = AuthRequirement(
-            auth_type=AuthType.API_KEY, 
-            name="api-key", 
+            auth_type=AuthType.API_KEY,
+            name="api-key",
             location=AuthLocation.HEADER,
             security_scheme_name="ApiKey",  # Same name as in source1
             api_title="Source2 API",
             source_description_id="source2"
         )
-        
+
         source2_bearer_req = AuthRequirement(
-            auth_type=AuthType.HTTP, 
-            name="bearer_auth", 
+            auth_type=AuthType.HTTP,
+            name="bearer_auth",
             schemes=["bearer"],
             security_scheme_name="BearerAuth",
             api_title="Source2 API",
             source_description_id="source2"
         )
-        
+
         auth_requirements = [
-            source1_api_key_req, 
-            source1_oauth2_req, 
-            source2_api_key_req, 
+            source1_api_key_req,
+            source1_oauth2_req,
+            source2_api_key_req,
             source2_bearer_req
         ]
-        
+
         # Generate mappings with multiple source descriptions
         mappings = self.auth_processor.generate_env_mappings(auth_requirements)
-        
+
         # Verify the structure has source descriptions as outer keys
         self.assertIn("source1", mappings)
         self.assertIn("source2", mappings)
-        
+
         # Check Source1 API key mappings
         self.assertIn("ApiKey", mappings["source1"])
         self.assertIn(EnvVarKeys.API_KEY, mappings["source1"]["ApiKey"])
         self.assertEqual(mappings["source1"]["ApiKey"][EnvVarKeys.API_KEY], "SOURCE1_APIKEY")
-        
+
         # Check Source1 OAuth2 mappings
         self.assertIn("OAuth2.clientCredentials", mappings["source1"])
         self.assertIn(EnvVarKeys.CLIENT_ID, mappings["source1"]["OAuth2.clientCredentials"])
         self.assertEqual(mappings["source1"]["OAuth2.clientCredentials"][EnvVarKeys.CLIENT_ID], "SOURCE1_OAUTH2_CLIENT_ID")
-        
+
         # Check Source2 API key mappings (same scheme name as Source1)
         self.assertIn("ApiKey", mappings["source2"])
         self.assertIn(EnvVarKeys.API_KEY, mappings["source2"]["ApiKey"])
         self.assertEqual(mappings["source2"]["ApiKey"][EnvVarKeys.API_KEY], "SOURCE2_APIKEY")
-        
+
         # Check Source2 Bearer auth mappings
         self.assertIn("BearerAuth", mappings["source2"])
         self.assertIn(EnvVarKeys.TOKEN, mappings["source2"]["BearerAuth"])

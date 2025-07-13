@@ -7,16 +7,18 @@ This module provides the main StepExecutor class that orchestrates the execution
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
+
 from oak_runner.models import ExecutionState, RuntimeParams
+
 from ..evaluator import ExpressionEvaluator
 from ..http import HTTPExecutor
 from .action_handler import ActionHandler
 from .operation_finder import OperationFinder
 from .output_extractor import OutputExtractor
 from .parameter_processor import ParameterProcessor
-from .success_criteria import SuccessCriteriaChecker
 from .server_processor import ServerProcessor
+from .success_criteria import SuccessCriteriaChecker
 
 # Configure logging
 logger = logging.getLogger("arazzo-runner.executor")
@@ -118,7 +120,7 @@ class StepExecutor:
         response = self.http_client.execute_request(
             method=operation_info.get("method"),
             url=final_url_template,
-            parameters=parameters, 
+            parameters=parameters,
             request_body=request_body,
             security_options=security_options,
             source_name=source_name,
@@ -180,7 +182,7 @@ class StepExecutor:
                             op_id_log = op_details.get("operationId", "[No operationId]")
                             logger.debug(f"  - {method_key.upper()} {path_key} (operationId: {op_id_log})")
             raise ValueError(f"Operation not found at path {operation_path}")
-        
+
         logger.debug(
             f"Found operation: {operation_info.get('method')} {operation_info.get('url')}"
         )
@@ -194,12 +196,12 @@ class StepExecutor:
             request_body = self.parameter_processor.prepare_request_body(
                 step.get("requestBody"), state
             )
-        
+
         # Extract security requirements
         security_options = self.operation_finder.extract_security_requirements(operation_info)
 
         # Resolve final URL
-        relative_operation_path_template = operation_info.get("url") 
+        relative_operation_path_template = operation_info.get("url")
         final_url_template = self.server_processor.resolve_server_params(
             source_name=source_name,
             operation_url_template=relative_operation_path_template, # Pass it as operation_url_template
@@ -215,7 +217,7 @@ class StepExecutor:
         response = self.http_client.execute_request(
             method=operation_info.get("method"),
             url=final_url_template,
-            parameters=parameters, 
+            parameters=parameters,
             request_body=request_body,
             security_options=security_options,
             source_name=source_name,
@@ -223,7 +225,7 @@ class StepExecutor:
 
         # Check success criteria
         success = self.success_checker.check_success_criteria(step, response, state)
-        
+
         # Extract outputs
         outputs = self.output_extractor.extract_outputs(step, response, state)
 
@@ -251,9 +253,9 @@ class StepExecutor:
     def execute_operation(
         self,
         inputs: dict[str, Any],
-        operation_id: Optional[str] = None,
-        operation_path: Optional[str] = None,
-        runtime_params: Optional[RuntimeParams] = None,
+        operation_id: str | None = None,
+        operation_path: str | None = None,
+        runtime_params: RuntimeParams | None = None,
     ) -> dict:
         """
         Execute a single API operation directly, outside of a workflow context.

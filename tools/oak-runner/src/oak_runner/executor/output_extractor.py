@@ -47,7 +47,7 @@ class OutputExtractor:
         logger.info(f"Response status code: {status_code}")
         logger.debug(f"Response headers: {response.get('headers')}")
         logger.debug(f"Response body: {response.get('body')}")
-        
+
         # Add error context information for non-2xx status codes
         if status_code is not None and (status_code < 200 or status_code >= 300):
             outputs['oak_error_context'] = {

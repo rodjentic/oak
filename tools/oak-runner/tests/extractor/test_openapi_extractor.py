@@ -3,15 +3,15 @@
 Tests for the OpenAPI Extractor module.
 """
 
-import pytest
 import logging
 import sys
-import json
+
+import pytest
 
 from oak_runner.extractor.openapi_extractor import (
-    extract_operation_io,
     _limit_dict_depth,
-    _resolve_schema_refs
+    _resolve_schema_refs,
+    extract_operation_io,
 )
 
 # Configure specific logger for the extractor module for debug output
@@ -54,9 +54,9 @@ TEST_SPEC = {
                     }
                 },
                 "security": [
-                    {"apiKeyAuth": []}, 
-                    {"oauth2_def": ["write:orders"]}, 
-                    {"basicAuth": [], "petstore_auth": ["read:pets", "write:pets"]} 
+                    {"apiKeyAuth": []},
+                    {"oauth2_def": ["write:orders"]},
+                    {"basicAuth": [], "petstore_auth": ["read:pets", "write:pets"]}
                 ]
             }
         }
@@ -164,7 +164,7 @@ def test_extract_order_post_details():
     assert extracted["inputs"].get("type") == "object"
     assert "properties" in extracted["inputs"]
     assert isinstance(extracted["inputs"]["properties"], dict)
-    
+
     input_properties = extracted["inputs"]["properties"]
 
     # Check non-body parameter (simplified schema within properties)
@@ -225,7 +225,7 @@ def test_extract_order_post_details():
         "required": ["items"]  # Add missing required field
     }
     assert extracted["outputs"] == expected_resolved_output_schema
- 
+
     # --- Assert Security Requirements ---
     assert "security_requirements" in extracted
     expected_security_req = [

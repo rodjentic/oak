@@ -1,18 +1,18 @@
 # tests/executor/test_server_processor.py
-import pytest
 import os
-import logging
-from typing import Dict, Optional, List
 
-from oak_runner.models import ServerConfiguration, ServerVariable
+import pytest
+
 from oak_runner.executor.server_processor import ServerProcessor
+from oak_runner.models import ServerConfiguration, ServerVariable
+
 
 # Helper to create ServerVariable instances easily for tests
 def _create_server_variable(
     name: str,
-    default_value: Optional[str] = None, 
-    enum_values: Optional[List[str]] = None,
-    description: Optional[str] = None
+    default_value: str | None = None,
+    enum_values: list[str] | None = None,
+    description: str | None = None
 ) -> ServerVariable:
     kwargs = {}
     if default_value is not None:
@@ -25,10 +25,10 @@ def _create_server_variable(
 
 # Helper to create ServerConfiguration instances easily for tests
 def _create_server_config(
-    url_template: str, 
-    variables: Optional[Dict[str, ServerVariable]] = None,
-    api_title_prefix: Optional[str] = None,
-    description: Optional[str] = None
+    url_template: str,
+    variables: dict[str, ServerVariable] | None = None,
+    api_title_prefix: str | None = None,
+    description: str | None = None
 ) -> ServerConfiguration:
     kwargs = {'url_template': url_template}
     if variables is not None:
@@ -70,8 +70,8 @@ def test_resolve_with_env_var_with_prefix(mock_env):
     mock_env.setenv("MYAPI_OAK_SERVER_INSTANCE", "customerA")
     sv_instance = _create_server_variable(name="instance")
     config = _create_server_config(
-        "https://api.{instance}.com", 
-        variables={"instance": sv_instance}, 
+        "https://api.{instance}.com",
+        variables={"instance": sv_instance},
         api_title_prefix="MYAPI"
     )
     resolved_url = ServerProcessor.resolve_server_base_url(config)
@@ -87,7 +87,7 @@ def test_resolve_precedence_runtime_over_env_over_default(mock_env):
     mock_env.setenv("OAK_SERVER_HOST", "env-host")
     sv_host = _create_server_variable(name="host", default_value="default-host")
     config = _create_server_config(
-        "{host}/data", 
+        "{host}/data",
         variables={"host": sv_host}
     )
     resolved_url = ServerProcessor.resolve_server_base_url(config, server_runtime_params={"OAK_SERVER_HOST": "runtime-host"})
@@ -120,8 +120,8 @@ def test_resolve_missing_required_variable_raises_value_error(mock_env):
 def test_resolve_missing_required_variable_with_prefix_raises_value_error(mock_env):
     sv_user = _create_server_variable(name="user")
     config = _create_server_config(
-        "/{user}/profile", 
-        variables={"user": sv_user}, 
+        "/{user}/profile",
+        variables={"user": sv_user},
         api_title_prefix="PORTAL"
     )
     with pytest.raises(ValueError):

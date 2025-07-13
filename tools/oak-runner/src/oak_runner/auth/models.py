@@ -6,9 +6,11 @@ This module defines Pydantic models for different authentication schemas used in
 OpenAPI specifications and Arazzo workflows.
 """
 
-from enum import Enum, auto
-from typing import Dict, List, Optional, Union, Any
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+from enum import Enum
+from typing import Union
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
 
 # Environment variable key constants
 class EnvVarKeys:
@@ -69,7 +71,7 @@ class SecurityScheme(BaseModel):
     """Base model for all authentication schemas."""
     type: AuthType
     name: str
-    description: Optional[str] = None
+    description: str | None = None
 
 
 # API Key Authentication
@@ -86,22 +88,22 @@ class HttpAuthScheme(SecurityScheme):
     type: AuthType = AuthType.HTTP
     scheme: HttpSchemeType
     location: AuthLocation = AuthLocation.HEADER
-    bearer_format: Optional[str] = None  # For Bearer auth, e.g., 'JWT'
+    bearer_format: str | None = None  # For Bearer auth, e.g., 'JWT'
 
 
 # OAuth2 URLs
 class OAuth2Urls(BaseModel):
     """URLs used in OAuth2 flows."""
-    authorization: Optional[HttpUrl] = None
-    token: Optional[HttpUrl] = None
-    refresh: Optional[HttpUrl] = None
+    authorization: HttpUrl | None = None
+    token: HttpUrl | None = None
+    refresh: HttpUrl | None = None
 
 
 # OAuth2 Flow
 class OAuth2Flow(BaseModel):
     """Represents an OAuth2 flow configuration."""
-    scopes: Dict[str, str] = Field(default_factory=dict, description="Available scopes and their descriptions")
-    
+    scopes: dict[str, str] = Field(default_factory=dict, description="Available scopes and their descriptions")
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -110,7 +112,7 @@ class AuthorizationCodeFlow(OAuth2Flow):
     """Authorization Code flow for OAuth2."""
     authorization_url: HttpUrl
     token_url: HttpUrl
-    refresh_url: Optional[HttpUrl] = None
+    refresh_url: HttpUrl | None = None
 
 
 # OAuth2 Implicit Flow
@@ -134,11 +136,11 @@ class ClientCredentialsFlow(OAuth2Flow):
 # OAuth2 Flows Container
 class OAuth2Flows(BaseModel):
     """Container for all OAuth2 flows defined in a security scheme."""
-    authorization_code: Optional[AuthorizationCodeFlow] = None
-    implicit: Optional[ImplicitFlow] = None
-    password: Optional[PasswordFlow] = None
-    client_credentials: Optional[ClientCredentialsFlow] = None
-    
+    authorization_code: AuthorizationCodeFlow | None = None
+    implicit: ImplicitFlow | None = None
+    password: PasswordFlow | None = None
+    client_credentials: ClientCredentialsFlow | None = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -160,7 +162,7 @@ class OpenIDScheme(SecurityScheme):
 class CustomScheme(SecurityScheme):
     """Custom authentication schema for non-standard auth methods."""
     type: AuthType = AuthType.CUSTOM
-    parameters: Dict[str, str] = Field(default_factory=dict)
+    parameters: dict[str, str] = Field(default_factory=dict)
 
 
 # Union type for all authentication schemas
@@ -177,7 +179,7 @@ class RequestAuthValue(BaseModel):
     location: AuthLocation
     name: str
     auth_value: str
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -185,7 +187,7 @@ class RequestAuthValue(BaseModel):
 class BaseAuth(BaseModel):
     """Base class for all authentication values."""
     type: AuthType
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -195,7 +197,7 @@ class BasicAuth(BaseAuth):
     type: AuthType = AuthType.HTTP
     username: str
     password: str
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -203,7 +205,7 @@ class BearerAuth(BaseAuth):
     """Token for HTTP Bearer authentication."""
     type: AuthType = AuthType.HTTP
     token: str
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -211,7 +213,7 @@ class ApiKeyAuth(BaseAuth):
     """API Key authentication value."""
     type: AuthType = AuthType.API_KEY
     api_key: str
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -221,10 +223,10 @@ class OAuth2Web(BaseAuth):
     flow_type: OAuth2FlowType
     access_token: str
     token_type: str = "Bearer"
-    refresh_token: Optional[str] = None
-    expires_in: Optional[int] = None
-    scope: Optional[str] = None
-    
+    refresh_token: str | None = None
+    expires_in: int | None = None
+    scope: str | None = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -235,7 +237,7 @@ class OAuth2ClientCredentials(BaseAuth):
     client_id: str
     client_secret: str
     access_token: str
-    
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -244,10 +246,10 @@ class OAuth2AccessTokenOnly(BaseAuth):
     type: AuthType = AuthType.OAUTH2
     access_token: str
     token_type: str = "Bearer"
-    refresh_token: Optional[str] = None
-    expires_in: Optional[int] = None
-    scope: Optional[str] = None
-    
+    refresh_token: str | None = None
+    expires_in: int | None = None
+    scope: str | None = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -256,10 +258,10 @@ class OpenIDAuth(BaseAuth):
     type: AuthType = AuthType.OPENID
     access_token: str
     token_type: str = "Bearer"
-    refresh_token: Optional[str] = None
-    expires_in: Optional[int] = None
-    scope: Optional[str] = None
-    
+    refresh_token: str | None = None
+    expires_in: int | None = None
+    scope: str | None = None
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -283,8 +285,8 @@ class SecurityRequirement(BaseModel):
     }
     """
     scheme_name: str
-    scopes: List[str] = Field(default_factory=list)
-    
+    scopes: list[str] = Field(default_factory=list)
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -302,8 +304,8 @@ class SecurityOption(BaseModel):
       {"oauth2": ["read:pets", "write:pets"]}  # Option 2: Use OAuth2 with these scopes
     ]
     """
-    requirements: List[SecurityRequirement] = Field(default_factory=list)
-    
+    requirements: list[SecurityRequirement] = Field(default_factory=list)
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -324,7 +326,7 @@ def auth_requirement_to_schema(req: 'AuthRequirement') -> SecuritySchemeUnion:
         "description": req.description,
         "required": req.required
     }
-    
+
     if req.auth_type == AuthType.API_KEY:
         location = AuthLocation.HEADER
         if req.location:
@@ -332,13 +334,13 @@ def auth_requirement_to_schema(req: 'AuthRequirement') -> SecuritySchemeUnion:
                 location = AuthLocation(req.location.value)
             except ValueError:
                 pass
-            
+
         return ApiKeyScheme(
             **common,
             location=location,
             parameter_name=req.name
         )
-        
+
     elif req.auth_type == AuthType.HTTP:
         scheme = HttpSchemeType.CUSTOM
         if req.schemes and len(req.schemes) > 0:
@@ -346,12 +348,12 @@ def auth_requirement_to_schema(req: 'AuthRequirement') -> SecuritySchemeUnion:
                 scheme = HttpSchemeType(req.schemes[0].lower())
             except ValueError:
                 pass
-                
+
         return HttpAuthScheme(
             **common,
             scheme=scheme
         )
-        
+
     elif req.auth_type == AuthType.OAUTH2:
         flow_type = OAuth2FlowType.AUTHORIZATION_CODE
         if req.flow_type:
@@ -359,7 +361,7 @@ def auth_requirement_to_schema(req: 'AuthRequirement') -> SecuritySchemeUnion:
                 flow_type = OAuth2FlowType(req.flow_type)
             except ValueError:
                 pass
-                
+
         auth_urls = OAuth2Urls()
         if req.auth_urls:
             auth_urls = OAuth2Urls(
@@ -367,7 +369,7 @@ def auth_requirement_to_schema(req: 'AuthRequirement') -> SecuritySchemeUnion:
                 token=req.auth_urls.get("token"),
                 refresh=req.auth_urls.get("refresh")
             )
-            
+
         flows = OAuth2Flows()
         if flow_type == OAuth2FlowType.AUTHORIZATION_CODE:
             flows.authorization_code = AuthorizationCodeFlow(
@@ -387,21 +389,21 @@ def auth_requirement_to_schema(req: 'AuthRequirement') -> SecuritySchemeUnion:
             flows.client_credentials = ClientCredentialsFlow(
                 token_url=auth_urls.token
             )
-            
+
         return OAuth2Scheme(
             **common,
             flows=flows
         )
-        
+
     elif req.auth_type == AuthType.OPENID:
         openid_url = None
         if req.auth_urls and "openid_configuration" in req.auth_urls:
             openid_url = req.auth_urls["openid_configuration"]
-            
+
         return OpenIDScheme(
             **common,
             openid_connect_url=openid_url or "https://example.com/.well-known/openid-configuration"
         )
-        
+
     else:  # CUSTOM or unknown
         return CustomScheme(**common)

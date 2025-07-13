@@ -10,8 +10,8 @@ import logging
 import sys
 from typing import Any
 
+from .models import RuntimeParams, StepStatus
 from .runner import OAKRunner
-from .models import StepStatus, RuntimeParams
 from .utils import set_log_level
 
 logger = logging.getLogger("oak-runner-cli")
@@ -215,8 +215,8 @@ async def handle_execute_workflow(runner: OAKRunner | None, args: argparse.Names
 
     try:
         result = runner.execute_workflow(
-            args.workflow_id, 
-            inputs, 
+            args.workflow_id,
+            inputs,
             runtime_params=runtime_params  # Pass the RuntimeParams object
         )
     except Exception as e:
@@ -289,7 +289,7 @@ async def handle_execute_operation(runner: OAKRunner | None, args: argparse.Name
         # REMOVED await as execute_operation is synchronous
         # Create a RuntimeParams object with the server parameters
         runtime_params = RuntimeParams(servers=server_params_dict)
-        
+
         result = runner.execute_operation(
             operation_id=args.operation_id,  # Pass directly
             operation_path=args.operation_path, # Pass directly

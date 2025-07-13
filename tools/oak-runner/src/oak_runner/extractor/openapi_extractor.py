@@ -6,25 +6,24 @@ This module provides functionality to extract input parameters and output schema
 from an OpenAPI specification for a given API operation.
 """
 
+import copy
 import logging
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+import re
+from typing import Any
 
 import jsonpointer
-import copy
-import re
 
-from oak_runner.executor.operation_finder import OperationFinder
 from oak_runner.auth.models import SecurityOption
-from ..models import ServerConfiguration, ServerVariable
+from oak_runner.executor.operation_finder import OperationFinder
 
 # Configure logging (using the same logger as operation_finder for consistency)
 logger = logging.getLogger("oak_runner.extractor")
 
 
 def _format_security_options_to_dict_list(
-    security_options_list: List[SecurityOption],
-    operation_info: Dict[str, Any] # For logging context
-) -> List[Dict[str, List[str]]]:
+    security_options_list: list[SecurityOption],
+    operation_info: dict[str, Any] # For logging context
+) -> list[dict[str, list[str]]]:
     """
     Converts a list of SecurityOption objects into a list of dictionaries
     representing OpenAPI security requirements.
@@ -53,7 +52,7 @@ def _format_security_options_to_dict_list(
                     logger.warning(
                         f"Missing attributes on SecurityRequirement object for operation {op_method} {op_path}. Error: {e}"
                     )
-        
+
         # Handle OpenAPI's concept of an empty security requirement object {},
         # (optional authentication), represented by an empty list of requirements.
         if sec_opt.requirements == []: # Explicitly check for an empty list
@@ -64,7 +63,7 @@ def _format_security_options_to_dict_list(
     return formatted_requirements
 
 
-def _resolve_ref(spec: Dict[str, Any], ref: str) -> Dict[str, Any]:
+def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     """
     Resolves a JSON pointer $ref, returning the referenced dictionary.
     """
@@ -101,7 +100,7 @@ def _resolve_ref(spec: Dict[str, Any], ref: str) -> Dict[str, Any]:
         raise
 
 
-def _resolve_schema_refs(schema_part: Any, full_spec: Dict[str, Any], visited_refs: Optional[Set[str]] = None) -> Any:
+def _resolve_schema_refs(schema_part: Any, full_spec: dict[str, Any], visited_refs: set[str] | None = None) -> Any:
     """Recursively resolves all $ref pointers within a schema fragment, handling circular references."""
     # Initialize visited_refs for the current resolution path if it's the first call in a chain
     current_visited_refs = visited_refs if visited_refs is not None else set()
@@ -115,13 +114,13 @@ def _resolve_schema_refs(schema_part: Any, full_spec: Dict[str, Any], visited_re
             if ref_path in current_visited_refs:
                 logger.debug(f"Circular reference detected for '{ref_path}'. Returning original $ref dict.")
                 # Return the original reference dict to break the cycle
-                return current_part 
+                return current_part
 
             try:
                 # Add current ref_path to a new set for the next level of recursion to avoid cross-branch pollution
                 next_level_visited_refs = current_visited_refs.copy()
                 next_level_visited_refs.add(ref_path)
-                
+
                 resolved_content = _resolve_ref(full_spec, ref_path) # Resolve from ORIGINAL full_spec
                 # Recursively resolve within the newly resolved content, passing the updated visited set
                 result = _resolve_schema_refs(resolved_content, full_spec, next_level_visited_refs)
@@ -147,12 +146,12 @@ def _resolve_schema_refs(schema_part: Any, full_spec: Dict[str, Any], visited_re
 
 
 def extract_operation_io(
-    spec: Dict[str, Any],
+    spec: dict[str, Any],
     http_path: str,
     http_method: str,
-    input_max_depth: Optional[int] = None,
-    output_max_depth: Optional[int] = None
-) -> Dict[str, Dict[str, Any]]:
+    input_max_depth: int | None = None,
+    output_max_depth: int | None = None
+) -> dict[str, dict[str, Any]]:
     """
     Finds the specified operation within the spec and extracts input parameters
     structured as an OpenAPI object schema and the full schema for the success
@@ -217,7 +216,7 @@ def extract_operation_io(
         return {"inputs": {}, "outputs": {}, "security_requirements": []}
 
     # Initialize with new structure for inputs
-    extracted_details: Dict[str, Any] = {
+    extracted_details: dict[str, Any] = {
         "inputs": {"type": "object", "properties": {}, "required": []},
         "outputs": {},
         "security_requirements": []
@@ -228,8 +227,8 @@ def extract_operation_io(
         return extracted_details
 
     # Extract security requirements using OperationFinder
-    security_options_list: List[SecurityOption] = finder.extract_security_requirements(operation_info)
-    
+    security_options_list: list[SecurityOption] = finder.extract_security_requirements(operation_info)
+
     extracted_details["security_requirements"] = _format_security_options_to_dict_list(
         security_options_list, operation_info
     )
@@ -345,7 +344,7 @@ def extract_operation_io(
                 # Recursively resolve nested refs within the body schema
                 fully_resolved_body_schema = _resolve_schema_refs(body_schema, spec)
 
-                # --- Flatten body properties into inputs --- 
+                # --- Flatten body properties into inputs ---
                 if isinstance(fully_resolved_body_schema, dict) and fully_resolved_body_schema.get("type") == "object":
                     body_properties = fully_resolved_body_schema.get("properties", {})
                     for prop_name, prop_schema in body_properties.items():
@@ -364,7 +363,7 @@ def extract_operation_io(
                     # If body is not an object (e.g., array, primitive) or has no properties, don't flatten.
                     # Log a warning as we are not adding it under 'body' key either per the requirement.
                     logger.warning(f"Request body for {http_method.upper()} {http_path} is not an object with properties. Skipping flattening.")
-                # --- End flatten --- 
+                # --- End flatten ---
 
                 # Removed code that added the schema under 'body'
                 # Removed code that checked 'required' on the nested 'body' object
@@ -414,9 +413,9 @@ def extract_operation_io(
     return extracted_details
 
 
-def _limit_dict_depth(data: Union[Dict, List, Any], max_depth: int, current_depth: int = 0) -> Union[Dict, List, Any]:
+def _limit_dict_depth(data: dict | list | Any, max_depth: int, current_depth: int = 0) -> dict | list | Any:
     """Recursively limits the depth of a dictionary or list structure."""
-    
+
     if isinstance(data, dict):
         if current_depth >= max_depth:
             return data.get('type', 'object') # Limit hit for dict

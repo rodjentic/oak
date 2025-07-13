@@ -1,6 +1,6 @@
 # src/oak_runner/auth/credentials/validate.py
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 
 from oak_runner.auth.credentials.models import Credential
 
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class CredentialValidator(ABC):
     """Abstract base class for credential validators."""
-    
+
     @abstractmethod
     def validate(self, credential: Credential) -> bool:
         """Validate a credential."""
@@ -17,7 +17,7 @@ class CredentialValidator(ABC):
 
 class ValidCredentialValidator(CredentialValidator):
     """Validator that checks to see if we have a valid credential."""
-    
+
     def validate(self, credential: Credential) -> bool:
         # Check if we have a security scheme and auth_value set, if not this isnt valid
         if not credential.security_scheme:

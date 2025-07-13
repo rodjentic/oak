@@ -1,9 +1,9 @@
 # tests/executor/test_operation_finder.py
 import unittest
-from oak_runner.executor.operation_finder import OperationFinder
-from oak_runner.auth.models import SecurityOption, SecurityRequirement
-import pytest
+
 from oak_runner.auth.auth_processor import AuthProcessor
+from oak_runner.auth.models import SecurityOption, SecurityRequirement
+from oak_runner.executor.operation_finder import OperationFinder
 
 # Mock OpenAPI source descriptions
 MOCK_SOURCE_DESC = {
@@ -409,7 +409,7 @@ def test_get_security_requirements_for_workflow_scope_merging():
                 "/bar": {
                     "post": {
                         "operationId": "op2",
-                        "security": [{"oauth2": ["write"]}] 
+                        "security": [{"oauth2": ["write"]}]
                     }
                 }
             },

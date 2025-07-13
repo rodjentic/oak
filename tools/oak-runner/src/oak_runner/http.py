@@ -6,11 +6,12 @@ This module provides HTTP request handling for the OAK Runner.
 """
 import logging
 from typing import Any
-from typing import Optional
-from oak_runner.auth.models import SecurityOption, RequestAuthValue, AuthLocation
-from oak_runner.auth.credentials.provider import CredentialProvider
-from oak_runner.auth.credentials.fetch import FetchOptions
+
 import requests
+
+from oak_runner.auth.credentials.fetch import FetchOptions
+from oak_runner.auth.credentials.provider import CredentialProvider
+from oak_runner.auth.models import AuthLocation, RequestAuthValue, SecurityOption
 
 # Configure logging
 logger = logging.getLogger("arazzo-runner.http")
@@ -19,7 +20,7 @@ logger = logging.getLogger("arazzo-runner.http")
 class HTTPExecutor:
     """HTTP client for executing API requests in Arazzo workflows"""
 
-    def __init__(self, http_client=None, auth_provider: Optional[CredentialProvider] = None):
+    def __init__(self, http_client=None, auth_provider: CredentialProvider | None = None):
         """
         Initialize the HTTP client
 
@@ -27,7 +28,7 @@ class HTTPExecutor:
             http_client: Optional HTTP client (defaults to requests.Session)
         """
         self.http_client = http_client or requests.Session()
-        self.auth_provider: Optional[CredentialProvider] = auth_provider
+        self.auth_provider: CredentialProvider | None = auth_provider
 
     def _get_content_type_category(self, content_type: str | None) -> str:
         """
@@ -41,9 +42,9 @@ class HTTPExecutor:
         """
         if not content_type:
             return 'unknown'
-            
+
         content_type_lower = content_type.lower()
-        
+
         if "multipart/form-data" in content_type_lower:
             return 'multipart'
         elif "json" in content_type_lower:
@@ -110,7 +111,7 @@ class HTTPExecutor:
                     headers["Content-Type"] = content_type
                     logger.debug(f"Content type '{content_type}' specified but payload is None - sending empty body with header")
                 # If no content_type either, just send empty body (no header needed)
-                
+
             elif content_category == 'multipart':
                 # Path 1: Multipart form data with file uploads
                 files = {}
@@ -243,7 +244,7 @@ class HTTPExecutor:
             # If security options are provided, use them to resolve credentials
             if security_options:
                 logger.debug(f"Resolving credentials for security options: {security_options}")
-                
+
                 # Get auth values for the security requirements
                 fetch_options = FetchOptions(
                     source_name=source_name
