@@ -1,249 +1,641 @@
-# OAK Runner [Beta]
+# OAK Runner
 
-The OAK Runner is a workflow execution engine that processes and executes API workflows defined in the Arazzo format and individual API calls defined in OpenAPI specifications.
+*Automate complex API workflows with simple YAML definitions*
 
-## Usage
+OAK Runner is a powerful workflow-execution engine that turns complex API orchestration into concise, declarative YAML workflows.
+Built on the **Arazzo** specification, it lets you chain API calls, handle authentication, manage data flow and implement sophisticated business logic—without writing code.
 
-### Execute a Workflow
+---
+
+## Table of Contents
+
+* [Why OAK Runner?](#why-oak-runner)
+* [Key Features](#key-features)
+* [Use Cases](#use-cases)
+* [Installation](#installation)
+
+  * [Quick Start with `uvx`](#quick-start-with-uvx-recommended)
+  * [Development Install with Make](#development-installation-with-make)
+  * [Python Package](#python-package)
+* [Quick Start](#quick-start)
+
+  1. [Create Your First Workflow](#1-create-your-first-workflow)
+  2. [Execute the Workflow](#2-execute-the-workflow)
+  3. [Use in Python](#3-use-in-python)
+* [Development Workflow](#development-workflow)
+* [Core Concepts](#core-concepts)
+* [Comprehensive Examples](#comprehensive-examples)
+* [Project Structure](#project-structure)
+* [Adding New Features](#adding-new-features)
+* [Authentication Guide](#authentication-guide)
+* [Server Configuration](#server-configuration)
+* [CLI Reference](#cli-reference)
+* [Testing Framework](#testing-framework)
+* [Contributing](#contributing)
+* [License](#license)
+* [Acknowledgments](#acknowledgments)
+
+---
+
+## Why OAK Runner?
+
+### Before OAK Runner
+
 ```python
-from oak_runner import OAKRunner
+auth_response = requests.post('/auth', data={'username': user, 'password': pwd})
+token = auth_response.json()['access_token']
 
-runner = OAKRunner.from_arazzo_path("../../workflows/discord.com/workflows.arazzo.json")
+user_response = requests.get('/users/me', headers={'Authorization': f'Bearer {token}'})
+user_id      = user_response.json()['id']
 
-result = runner.execute_workflow("workflowId", {"param1": "value1"})
+orders_response = requests.get(f'/users/{user_id}/orders',
+                               headers={'Authorization': f'Bearer {token}'})
+# Handle errors, retries, conditional logic...
 ```
 
-### Display Authentication Options
-```python
-from oak_runner import OAKRunner
+### With OAK Runner
 
-runner = OAKRunner.from_arazzo_path("../../workflows/discord.com/workflows.arazzo.json")
+```yaml
+workflows:
+  - workflowId: getUserOrders
+    steps:
+      - stepId: authenticate
+        operationId: login
+        parameters:
+          - name: username
+            value: $inputs.username
+          - name: password
+            value: $inputs.password
 
-print(runner.get_env_mappings())
+      - stepId: getUser
+        operationId: getCurrentUser
+        parameters:
+          - name: Authorization
+            in: header
+            value: Bearer $steps.authenticate.outputs.access_token
+
+      - stepId: getOrders
+        operationId: getUserOrders
+        parameters:
+          - name: userId
+            value: $steps.getUser.outputs.id
+          - name: Authorization
+            in: header
+            value: Bearer $steps.authenticate.outputs.access_token
 ```
 
-### Execute a Single OpenAPI Operation
-```python
-from oak_runner import OAKRunner
-# Execute a single OpenAPI operation with an operationId
-result = runner.execute_operation("operationId", {"param1": "value1"})
+---
 
-# Execute a single OpenAPI operation by path
-result = runner.execute_operation("GET /users/@me/guilds", {"param1": "value1"})
-```
+## Key Features
 
-### Create a Runner with a Custom Base Path
-```python
-# Create a runner instance with a custom base path for resolving OpenAPI file paths
-runner_with_base_path = OAKRunner.from_arazzo_path(
-    "./my/arazzo.yaml", 
-    base_path="./my/source/description/base"
-)
-```
+* **API Workflow Orchestration** – Chain multiple API calls with automatic data flow between steps
+* **Smart Authentication** – Built-in handling for OAuth2, API keys, HTTP Basic/Bearer, …
+* **Data Transformation** – Extract & transform data using JSONPath, JSON Pointer and expressions
+* **Flow Control** – Conditional execution, retries, error handling and branching logic
+* **Multi-API Support** – Orchestrate workflows across different services
+* **Testing Framework** – Built-in testing and validation for workflows
+* **Standards-Based** – Powered by **OpenAPI 3+** and the **Arazzo** spec
 
-## Authentication
+---
 
-Credentials are resolved from environment variables defined by the OAK Runner based on the Arazzo or OpenAPI file. You can see the authentication options by using `runner.get_env_mappings` or the `show-env-mappings` command line tool defined below.
+## Use Cases
 
-The OAK Runner supports various authentication methods defined in OpenAPI specifications:
+* **API Integration Pipelines** – Synchronise data between services
+* **E-commerce Workflows** – Order processing, inventory management, payment flows
+* **DevOps Automation** – CI/CD pipelines, infrastructure provisioning
+* **Data Collection** – Aggregate data from multiple APIs
+* **Business Process Automation** – Customer onboarding, approval workflows
 
-- **API Key**: Header, Query, or Cookie API keys
-- **OAuth2**: Some OAuth2 Flows (Client Credentials, Password)
-- **HTTP**: Basic and Bearer Authentication
+---
 
-### Auth Methods Not Yet Supported
-- **OAuth2**: Authorization Code, Implicit
-- **OpenID**: OpenID Connect
-- **Custom**: Custom Authentication Schemes
+## Installation
 
-## Command Line Usage
+### Quick Start with `uvx` (recommended)
 
-Usage:
-```sh
-uvx oak-runner <command> [command-specific arguments] [global options]
-```
-
-**Commands:**
-
-1.  **`show-env-mappings`**: Show environment variable mappings for authentication based on an Arazzo or OpenAPI file.
-    ```sh
-    uvx oak-runner show-env-mappings [arazzo_path | --openapi-path PATH]
-    ```
-    -   `arazzo_path`: Path to the Arazzo YAML file (use this OR --openapi-path).
-    -   `--openapi-path PATH`: Path to the OpenAPI spec file (use this OR arazzo_path).
-    *One of the path arguments is required.*
-
-2.  **`execute-workflow`**: Execute a workflow defined in an Arazzo file.
-    ```sh
-    uvx oak-runner execute-workflow <arazzo_path> --workflow-id <workflow_id> [--inputs <json_string>]
-    ```
-    -   `arazzo_path`: *Required*. Path to the Arazzo YAML file containing the workflow.
-    -   `--workflow-id WORKFLOW_ID`: *Required*. ID of the workflow to execute.
-    -   `--inputs INPUTS`: Optional JSON string of workflow inputs (default: `{}`).
-
-3.  **`execute-operation`**: Execute a single API operation directly from an OpenAPI specification (or an Arazzo file for context).
-    ```sh
-    uvx oak-runner execute-operation [--arazzo-path PATH | --openapi-path PATH] [--operation-id ID | --operation-path PATH_METHOD] [--inputs <json_string>]
-    ```
-    -   `--arazzo-path PATH`: Path to an Arazzo file (provides context, use this OR --openapi-path).
-    -   `--openapi-path PATH`: Path to the OpenAPI spec file (use this OR --arazzo-path).
-        *One of the path arguments is required.*
-    -   `--operation-id ID`: The `operationId` from the OpenAPI spec (use this OR --operation-path).
-    -   `--operation-path PATH_METHOD`: The HTTP method and path (e.g., 'GET /users/{id}') from the OpenAPI spec (use this OR --operation-id).
-        *One of the operation identifiers is required.*
-    -   `--inputs INPUTS`: Optional JSON string of operation inputs (parameters, request body) (default: `{}`).
-
-4.  **`list-workflows`**: List all available workflows defined in an Arazzo file.
-    ```sh
-    uvx oak-runner list-workflows <arazzo_path>
-    ```
-    -   `arazzo_path`: *Required*. Path to the Arazzo YAML file.
-
-5.  **`describe-workflow`**: Show details of a specific workflow, including its summary, inputs, steps, and outputs.
-    ```sh
-    uvx oak-runner describe-workflow <arazzo_path> --workflow-id <workflow_id>
-    ```
-    -   `arazzo_path`: *Required*. Path to the Arazzo YAML file containing the workflow.
-    -   `--workflow-id WORKFLOW_ID`: *Required*. ID of the workflow to describe.
-
-6.  **`generate-example`**: Generate an example CLI command to execute a specified workflow, including placeholder inputs.
-    ```sh
-    uvx oak-runner generate-example <arazzo_path> --workflow-id <workflow_id>
-    ```
-    -   `arazzo_path`: *Required*. Path to the Arazzo YAML file containing the workflow.
-    -   `--workflow-id WORKFLOW_ID`: *Required*. ID of the workflow to generate an example for.
-
-
-**Global Options:**
-- `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}`: Set the logging level (default: INFO).
-
-
-**Examples:**
-
-```sh
-# Show environment variable mappings using an Arazzo file
-uvx oak-runner show-env-mappings ./tests/fixtures/discord/discord.arazzo.yaml
-
-# Show environment variable mappings using an OpenAPI file
-uvx oak-runner show-env-mappings --openapi-path ./tests/fixtures/discord/discord.openapi.json
-
-# Execute a workflow
-uvx oak-runner execute-workflow ./tests/fixtures/discord/discord.arazzo.yaml --workflow-id getUserInfoAndSendMessage --inputs '{\"recipient_id\": \"1234567890\", \"message_content\": \"Hello!\"}'
-
-# Execute a specific operation using its operationId and an OpenAPI file
-uvx oak-runner execute-operation --openapi-path ./tests/fixtures/discord/discord.openapi.json --operation-id list_my_guilds --inputs '{}'
-
-# Execute a specific operation using its path/method and an Arazzo file (for context)
-uvx oak-runner execute-operation --arazzo-path ./tests/fixtures/discord/discord.arazzo.yaml --operation-path 'GET /users/@me/guilds' --inputs '{}' --log-level DEBUG
-
-# List all available workflows
-uvx oak-runner list-workflows ./tests/fixtures/discord/discord.arazzo.yaml
-
-# Describe a specific workflow
-uvx oak-runner describe-workflow ./tests/fixtures/discord/discord.arazzo.yaml --workflow-id getUserInfoAndSendMessage
-
-# Generate an example CLI command to execute a workflow
-uvx oak-runner generate-example ./tests/fixtures/discord/discord.arazzo.yaml --workflow-id getUserInfoAndSendMessage
-```
-
-**Help:**
-```sh
-# General help
+```bash
 uvx oak-runner --help
-
-# Help for a specific command (e.g., execute-operation)
-uvx oak-runner execute-operation --help
+# execute a workflow
+uvx oak-runner execute-workflow workflow.arazzo.yaml --workflow-id myWorkflow
 ```
 
-## Server URL Configuration
+### Development Installation with Make
 
-OAK Runner supports dynamic server URLs as defined in the `servers` object of an OpenAPI specification. This allows you to define API server URLs with templated variables (e.g., `https://{instance_id}.api.example.com/v1` or `https://api.example.com/{region}/users`).
+```bash
+git clone https://github.com/jentic/oak.git
+cd oak/tools/oak-runner
 
-### Variable Resolution
+# one-time setup (uv + venv + PDM + deps)
+make setup
 
-When an operation requires a server URL with variables, OAK Runner resolves these variables in the following order of precedence:
-
-1.  **Runtime Parameters**: Values passed explicitly when executing an operation or workflow (e.g., via the `--server-variables` CLI argument or the `runtime_params` parameter in `execute_operation`/`execute_workflow` methods). These parameters should be provided as a dictionary where keys match the expected environment variable names for the server variables (see below).
-2.  **Environment Variables**: If not provided as a runtime parameter, OAK Runner attempts to find an environment variable.
-3.  **Default Values**: If not found in runtime parameters or environment variables, the `default` value specified for the variable in the OpenAPI document's `servers` object is used.
-
-If a variable in the URL template cannot be resolved through any of these means, and it does not have a default value, an error will occur.
-
-### Environment Variable Naming
-
-The environment variables for server URLs follow these naming conventions:
-
--   If the OpenAPI specification's `info.title` is available and an `API_TITLE_PREFIX` can be derived from it (typically the first word of the title, uppercased and sanitized, e.g., `PETSTORE` from "Petstore API"), the format is:
-    `[API_TITLE_PREFIX_]OAK_SERVER_<VAR_NAME_UPPERCASE>`
-    Example: `PETSTORE_OAK_SERVER_REGION=us-east-1`
-
--   If an `API_TITLE_PREFIX` cannot be derived (e.g., `info.title` is missing or empty), the format is:
-    `OAK_SERVER_<VAR_NAME_UPPERCASE>`
-    Example: `OAK_SERVER_INSTANCE_ID=my-instance-123`
-
-The `<VAR_NAME_UPPERCASE>` corresponds to the variable name defined in the `servers` object's `variables` map (e.g., `region` or `instance_id`), converted to uppercase.
-
-You can use the `show-env-mappings` CLI command to see the expected environment variable names for server URLs, alongside authentication variables, for a given OpenAPI specification.
-
-### Example
-
-Consider an OpenAPI specification with:
-- `info.title: "My Custom API"`
-- A server definition:
-  ```yaml
-  servers:
-    - url: "https://{instance}.api.example.com/{version}"
-      variables:
-        instance:
-          default: "prod"
-          description: "The API instance name."
-        version:
-          default: "v1"
-          description: "API version."
-  ```
-
-To set the `instance` to "dev" and `version` to "v2" via environment variables, you would set:
-```sh
-export MYCUSTOM_OAK_SERVER_INSTANCE=dev
-export MYCUSTOM_OAK_SERVER_VERSION=v2
-```
-(Assuming "MYCUSTOM" is derived from "My Custom API").
-
-Alternatively, to provide these at runtime via the CLI when executing an operation:
-```sh
-uvx oak-runner execute-operation --openapi-path path/to/spec.yaml --operation-id someOperation \
-  --server-variables '{"MYCUSTOM_OAK_SERVER_INSTANCE": "staging", "MYCUSTOM_OAK_SERVER_VERSION": "v2beta"}'
+# test the CLI immediately
+make run
 ```
 
+Run the full test-suite:
 
-## Overview
+```bash
+make test
+```
 
-OAK Runner orchestrates API workflows by:
+See all available commands:
 
-- Loading and validating Arazzo workflow documents
-- Executing workflow steps sequentially or conditionally
-- Evaluating runtime expressions and success criteria
-- Extracting and transforming data between steps
-- Handling flow control (continue, goto, retry, end)
-- Supporting nested workflow execution
-- Providing event callbacks for workflow lifecycle events
-- Managing authentication requirements across different APIs
+```bash
+make help
+```
 
+### Python Package
 
-## Testing
+```bash
+pip install oak-runner
+```
 
-The OAK Runner includes a comprehensive testing framework for workflow validation:
+---
 
-- Automated test fixtures for different workflow scenarios
-- Mock HTTP responses based on OpenAPI specs
-- Custom mock responses for specific endpoints
-- Validation of workflow outputs and API call counts
+## Quick Start
 
-For details on testing, see [OAK Runner Testing Framework](https://github.com/jentic/oak/blob/main/tools/oak-runner/tests/README.md)
+### 1. Create Your First Workflow
 
-## Arazzo Format
+Save as **`petstore-workflow.arazzo.yaml`**:
 
-The Arazzo specification is our workflow definition format that orchestrates API calls using OpenAPI specifications.
+```yaml
+arazzo: 1.0.0
+info:
+  title: Pet Store Workflow
+  version: 1.0.0
 
-- Schema: [arazzo-schema.yaml](https://github.com/jentic/oak/blob/main/tools/oak-runner/arazzo_spec/arazzo-schema.yaml)
-- Documentation: [arazzo-spec.md](https://github.com/jentic/oak/blob/main/tools/oak-runner/arazzo_spec/arazzo-spec.md)
+sourceDescriptions:
+  - name: petstore
+    url: https://petstore3.swagger.io/api/v3/openapi.json
+    type: openapi
+
+workflows:
+  - workflowId: findAvailablePets
+    summary: Find all available pets in the store
+    inputs:
+      type: object
+      properties:
+        status:
+          type: string
+          default: available
+
+    steps:
+      - stepId: getPets
+        description: Get pets by status
+        operationId: findPetsByStatus
+        parameters:
+          - name: status
+            in: query
+            value: $inputs.status
+
+        outputs:
+          availablePets: $response.body
+          petCount:     $response.body.length
+
+    outputs:
+      pets:  $steps.getPets.outputs.availablePets
+      count: $steps.getPets.outputs.petCount
+```
+
+### 2. Execute the Workflow
+
+```bash
+# list available workflows
+uvx oak-runner list-workflows petstore-workflow.arazzo.yaml
+
+# run it
+uvx oak-runner execute-workflow petstore-workflow.arazzo.yaml \
+  --workflow-id findAvailablePets \
+  --inputs '{"status": "available"}'
+```
+
+Check auth requirements:
+
+```bash
+uvx oak-runner show-env-mappings petstore-workflow.arazzo.yaml
+```
+
+### 3. Use in Python
+
+```python
+from oak_runner import OAKRunner
+
+runner = OAKRunner.from_arazzo_path("petstore-workflow.arazzo.yaml")
+result  = runner.execute_workflow(
+    workflow_id="findAvailablePets",
+    inputs={"status": "available"}
+)
+print(f"Found {result.outputs['count']} pets")
+```
+
+---
+
+## Development Workflow
+
+The included **Makefile** automates the entire dev-experience—no extra tooling required.
+
+```bash
+# bootstrap everything
+make setup
+
+# run CLI with default args
+make run
+
+# run with custom args
+make run RUN_ARGS="list-workflows examples/petstore.arazzo.yaml"
+```
+
+Common targets:
+
+| Command           | Purpose                            |
+| ----------------- | ---------------------------------- |
+| `make test`       | Run tests with coverage            |
+| `make test-fast`  | Quick tests (no coverage)          |
+| `make format`     | Auto-format code with Ruff + isort |
+| `make lint`       | Linters & type checks              |
+| `make clean`      | Remove caches & artefacts          |
+| `make pre-commit` | Format + lint + test in one go     |
+
+---
+
+## Core Concepts
+
+### Workflows & Steps
+
+```yaml
+workflows:
+  - workflowId: userRegistration
+    steps:
+      - stepId: createUser
+        operationId: createUser
+        parameters:
+          - name: email
+            value: $inputs.email
+
+      - stepId: sendWelcomeEmail
+        operationId: sendEmail
+        parameters:
+          - name: to
+            value: $steps.createUser.outputs.email
+          - name: template
+            value: welcome
+```
+
+### Data Flow with Expressions
+
+* Input value   `$inputs.userId`
+* Previous step  `$steps.loginStep.outputs.accessToken`
+* JSON Pointer  `$response.body#/data/items/0/id`
+* Array access  `$steps.searchStep.outputs.results[0].name`
+
+### Authentication Management
+
+```bash
+uvx oak-runner show-env-mappings my-workflow.arazzo.yaml
+```
+
+### Conditional Logic & Flow Control
+
+```yaml
+steps:
+  - stepId: checkUserStatus
+    operationId: getUser
+    successCriteria:
+      - condition: $response.body.status == "active"
+
+    onSuccess:
+      - name: continueWorkflow
+        type: goto
+        stepId: processActiveUser
+
+    onFailure:
+      - name: handleInactive
+        type: goto
+        stepId: sendActivationEmail
+```
+
+---
+
+## Comprehensive Examples
+
+### E-commerce Order Processing
+
+```yaml
+workflows:
+  - workflowId: processOrder
+    inputs:
+      type: object
+      properties:
+        cartId:        { type: string }
+        paymentMethod: { type: string }
+
+    steps:
+      - stepId: validateCart
+        operationId: getCart
+        parameters:
+          - name: cartId
+            value: $inputs.cartId
+        successCriteria:
+          - condition: $response.body.items.length > 0
+
+      - stepId: calculateTax
+        operationId: calculateTax
+        parameters:
+          - name: items
+            value: $steps.validateCart.outputs.items
+          - name: shippingAddress
+            value: $steps.validateCart.outputs.shippingAddress
+
+      - stepId: processPayment
+        operationId: chargePayment
+        parameters:
+          - name: amount
+            value: $steps.calculateTax.outputs.totalAmount
+          - name: paymentMethod
+            value: $inputs.paymentMethod
+
+        onSuccess:
+          - name: createOrder
+            type: goto
+            stepId: createOrder
+
+        onFailure:
+          - name: handlePaymentFailure
+            type: end
+```
+
+### Multi-Service Data Aggregation
+
+```yaml
+workflows:
+  - workflowId: generateUserReport
+    steps:
+      - stepId: getUserProfile
+        operationId: getUser
+
+      - stepId: getUserOrders
+        operationId: getUserOrders
+        parameters:
+          - name: userId
+            value: $steps.getUserProfile.outputs.id
+
+      - stepId: getUserPreferences
+        operationId: getUserPreferences
+        parameters:
+          - name: userId
+            value: $steps.getUserProfile.outputs.id
+
+      - stepId: aggregateData
+        operationId: createReport
+        requestBody:
+          contentType: application/json
+          payload:
+            userId:      $steps.getUserProfile.outputs.id
+            profile:     $steps.getUserProfile.outputs
+            orders:      $steps.getUserOrders.outputs
+            preferences: $steps.getUserPreferences.outputs
+```
+
+---
+
+## Project Structure
+
+```text
+oak-runner/
+├── Makefile                  # Dev automation
+├── src/oak_runner/           # Main package
+│   ├── auth/                 # Authentication
+│   ├── executor/             # Step engine
+│   ├── extractor/            # Data helpers
+│   ├── models.py             # Core models
+│   ├── runner.py             # OAKRunner class
+│   └── evaluator.py          # Expression eval
+├── tests/                    # Unit, integration, e2e
+├── examples/                 # Example workflows
+├── arazzo_spec/              # Arazzo spec
+└── pyproject.toml            # PDM config
+```
+
+---
+
+## Adding New Features
+
+1. **Write tests first**
+
+   ```bash
+   make test-fast
+   ```
+2. **Implement the feature**
+
+   ```bash
+   make run RUN_ARGS="--help"
+   ```
+3. **Format & Lint**
+
+   ```bash
+   make format
+   make lint
+   ```
+4. **Run full test suite**
+
+   ```bash
+   make test
+   ```
+5. **Pre-commit validation**
+
+   ```bash
+   make pre-commit
+   ```
+
+---
+
+## Authentication Guide
+
+### API Key Authentication
+
+```bash
+export MYAPI_API_KEY='your-api-key-here'
+```
+
+### OAuth2 Client Credentials
+
+```bash
+export MYAPI_OAUTH_CLIENT_ID='your-client-id'
+export MYAPI_OAUTH_CLIENT_SECRET='your-client-secret'
+```
+
+### HTTP Basic / Bearer
+
+```bash
+export MYAPI_USERNAME='your-username'
+export MYAPI_PASSWORD='your-password'
+# or
+export MYAPI_TOKEN='your-bearer-token'
+```
+
+### Discovering Requirements
+
+```bash
+uvx oak-runner show-env-mappings workflow.arazzo.yaml
+```
+
+Example output:
+
+```json
+{
+  "auth": {
+    "petstore_api": {
+      "apiKey": "PETSTORE_API_KEY"
+    }
+  },
+  "servers": {
+    "https://{environment}.api.example.com": {
+      "environment": "EXAMPLE_OAK_SERVER_ENVIRONMENT"
+    }
+  }
+}
+```
+
+---
+
+## Server Configuration
+
+```yaml
+servers:
+  - url: "https://{environment}.api.example.com/{version}"
+    variables:
+      environment:
+        default: prod
+        enum: [dev, staging, prod]
+      version:
+        default: v1
+```
+
+Set via environment variables:
+
+```bash
+export MYAPI_OAK_SERVER_ENVIRONMENT='staging'
+export MYAPI_OAK_SERVER_VERSION='v2'
+```
+
+CLI override:
+
+```bash
+uvx oak-runner execute-workflow workflow.arazzo.yaml \
+  --workflow-id myWorkflow \
+  --server-variables '{"MYAPI_OAK_SERVER_ENVIRONMENT": "dev"}'
+```
+
+---
+
+## CLI Reference
+
+### Workflow Management
+
+```bash
+uvx oak-runner list-workflows workflow.arazzo.yaml
+uvx oak-runner describe-workflow workflow.arazzo.yaml --workflow-id myWorkflow
+uvx oak-runner generate-example workflow.arazzo.yaml --workflow-id myWorkflow
+```
+
+### Execution
+
+```bash
+uvx oak-runner execute-workflow workflow.arazzo.yaml \
+  --workflow-id myWorkflow \
+  --inputs '{"param1": "value1"}' \
+  --server-variables '{}'
+
+uvx oak-runner execute-operation \
+  --openapi-path spec.json \
+  --operation-id getUser \
+  --inputs '{"userId": "123"}'
+```
+
+### Configuration
+
+```bash
+uvx oak-runner show-env-mappings workflow.arazzo.yaml
+uvx oak-runner show-env-mappings --openapi-path spec.json
+# or via Makefile
+make show-env ARAZZO_FILE=workflow.arazzo.yaml
+```
+
+### Global Options
+
+| Option                                            | Meaning               |
+| ------------------------------------------------- | --------------------- |
+| `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` | Set logging verbosity |
+| `--help`                                          | Show command help     |
+
+---
+
+## Testing Framework
+
+```bash
+make test          # all tests with coverage
+make test-unit     # unit tests only
+make test-integration
+make test-e2e
+make test-fast     # quick dev loop
+```
+
+In Python:
+
+```python
+from oak_runner.testing import WorkflowTester
+
+tester = WorkflowTester("workflow.arazzo.yaml")
+tester.mock_response("getUserById", {"id": "123", "name": "John"})
+
+result = tester.execute_workflow("myWorkflow", {"userId": "123"})
+assert result.status == "success"
+assert tester.call_count("getUserById") == 1
+```
+
+See **tests/README.md** for details.
+
+---
+
+## Contributing
+
+We welcome contributions!
+
+```bash
+# Setup
+make setup
+
+# Create feature branch
+git checkout -b feature/amazing-feature
+
+# Dev loop
+make run
+make test-fast
+make format
+make lint
+
+# Final checks
+make pre-commit
+
+# Build for distribution
+make build
+```
+
+Open issues or start discussions on GitHub.
+
+---
+
+## License
+
+Released under the **MIT License** – see **LICENSE** for details.
+
+---
+
+## Acknowledgments
+
+* Built on the **Arazzo** specification
+* Powered by **OpenAPI**
+* Inspired by modern API-workflow orchestration patterns
+
+---
+
+Ready to automate your API workflows? **Run `make setup` or `uvx oak-runner --help` and dive into the examples!**
