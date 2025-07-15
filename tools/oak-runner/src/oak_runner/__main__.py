@@ -4,7 +4,6 @@ Command-line interface for the Arazzo workflow runner.
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import sys
@@ -30,7 +29,7 @@ def parse_inputs(inputs_str: str) -> dict[str, Any]:
         raise ValueError(f"Invalid JSON format for inputs: {e}")
 
 
-async def main():
+def main():
     parser = argparse.ArgumentParser(description="Oak Runner")
     # Global arguments - defined *before* subparsers
     parser.add_argument(
@@ -128,8 +127,6 @@ async def main():
          # Use the specified or default log level for other commands
          set_log_level(args.log_level)
 
-    # Removed argument validation section as it's handled by argparse structure now
-
     runner = None # Runner will be initialized within handlers now
     try:
         # --- Command Execution ---
@@ -137,7 +134,7 @@ async def main():
         # Pass runner (always None initially) and args to the handler
         # The handler function is responsible for ensuring the runner is initialized.
         if hasattr(args, 'func'):
-            await args.func(None, args) # Pass None for runner
+            args.func(None, args) # Pass None for runner
         else:
             # Should not happen due to required=True on subparsers
             parser.print_help()
@@ -154,7 +151,7 @@ async def main():
         sys.exit(1)
 
 
-async def handle_show_env_mappings(runner: OAKRunner | None, args: argparse.Namespace):
+def handle_show_env_mappings(runner: OAKRunner | None, args: argparse.Namespace):
     # Runner is always passed as None now, initialize here based on args
     logger.info("Fetching environment variable mappings...")
     try:
@@ -170,7 +167,10 @@ async def handle_show_env_mappings(runner: OAKRunner | None, args: argparse.Name
             logger.error("Cannot fetch environment mappings: No Arazzo or OpenAPI path specified.")
             sys.exit(1)
 
-        mappings = OAKRunner.generate_env_mappings(runner.arazzo_doc, runner.source_descriptions)
+        mappings = OAKRunner.generate_env_mappings(
+            [runner.arazzo_doc] if runner.arazzo_doc else None, 
+            runner.source_descriptions
+        )
         print(json.dumps(mappings, indent=2))
         sys.exit(0)
     except Exception as e:
@@ -178,7 +178,7 @@ async def handle_show_env_mappings(runner: OAKRunner | None, args: argparse.Name
         sys.exit(1)
 
 
-async def handle_execute_workflow(runner: OAKRunner | None, args: argparse.Namespace):
+def handle_execute_workflow(runner: OAKRunner | None, args: argparse.Namespace):
     # Runner is always passed as None now, initialize here
     logger.info("Executing workflow...")
     # Initialize runner
@@ -214,10 +214,11 @@ async def handle_execute_workflow(runner: OAKRunner | None, args: argparse.Names
         sys.exit(1)
 
     try:
+        # Use sync wrapper method
         result = runner.execute_workflow(
             args.workflow_id,
             inputs,
-            runtime_params=runtime_params  # Pass the RuntimeParams object
+            runtime_params=runtime_params
         )
     except Exception as e:
         logger.error(f"Failed to execute workflow: {e}", exc_info=True)
@@ -246,7 +247,7 @@ async def handle_execute_workflow(runner: OAKRunner | None, args: argparse.Names
     sys.exit(0 if all_success else 1)
 
 
-async def handle_execute_operation(runner: OAKRunner | None, args: argparse.Namespace): # Runner can be None initially
+def handle_execute_operation(runner: OAKRunner | None, args: argparse.Namespace): # Runner can be None initially
     """Handles the execute_operation command."""
     # Runner is always passed as None now, initialize here
     logger.info("Executing direct operation...")
@@ -285,16 +286,15 @@ async def handle_execute_operation(runner: OAKRunner | None, args: argparse.Name
             logger.error("Runner was not initialized correctly.")
             sys.exit(1)
 
-        # Correctly pass operation_id and operation_path based on args
-        # REMOVED await as execute_operation is synchronous
         # Create a RuntimeParams object with the server parameters
         runtime_params = RuntimeParams(servers=server_params_dict)
 
+        # Use sync wrapper method
         result = runner.execute_operation(
             operation_id=args.operation_id,  # Pass directly
             operation_path=args.operation_path, # Pass directly
             inputs=inputs_dict,
-            runtime_params=runtime_params  # Pass the RuntimeParams object
+            runtime_params=runtime_params
         )
         # Remove 'headers' from result if present
         if isinstance(result, dict) and 'headers' in result:
@@ -310,7 +310,7 @@ async def handle_execute_operation(runner: OAKRunner | None, args: argparse.Name
         sys.exit(1)
 
 
-async def handle_list_workflows(runner: OAKRunner | None, args: argparse.Namespace):
+def handle_list_workflows(runner: OAKRunner | None, args: argparse.Namespace):
     """Handles the list-workflows command using logic from old arazzo_runner."""
     # logger.info("Listing workflows...") # Suppressed for this command by default
     try:
@@ -342,7 +342,7 @@ async def handle_list_workflows(runner: OAKRunner | None, args: argparse.Namespa
         sys.exit(1)
 
 
-async def handle_describe_workflow(runner: OAKRunner | None, args: argparse.Namespace):
+def handle_describe_workflow(runner: OAKRunner | None, args: argparse.Namespace):
     """Handles the describe-workflow command using logic from old arazzo_runner."""
     # logger.info(f"Describing workflow: {args.workflow_id}") # Suppressed
     try:
@@ -408,7 +408,7 @@ async def handle_describe_workflow(runner: OAKRunner | None, args: argparse.Name
         sys.exit(1)
 
 
-async def handle_generate_example(runner: OAKRunner | None, args: argparse.Namespace):
+def handle_generate_example(runner: OAKRunner | None, args: argparse.Namespace):
     """Handles the generate-example command using logic from old arazzo_runner."""
     # logger.info(f"Generating example command for workflow: {args.workflow_id}") # Suppressed
     try:
@@ -487,7 +487,7 @@ async def handle_generate_example(runner: OAKRunner | None, args: argparse.Names
 
 def run_main():
     """Provide a blocking main entry point for use in scripts"""
-    asyncio.run(main())
+    main()
 
 
 if __name__ == "__main__":

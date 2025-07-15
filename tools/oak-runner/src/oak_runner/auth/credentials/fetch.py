@@ -1,9 +1,12 @@
 # src/oak_runner/auth/credentials/fetch.py
+import asyncio
 import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Union
 
+import httpx
 import requests
 
 from oak_runner.auth.auth_parser import AuthLocation, AuthRequirement, AuthType, HttpSchemeType
@@ -52,7 +55,7 @@ class FetchOptions:
 
 
 class FetchStrategy(ABC):
-    """Defines the synchronous interface that all credential-fetch mechanisms
+    """Defines the asynchronous interface that all credential-fetch mechanisms
     must implement.
 
     A concrete `FetchStrategy` is responsible for turning *security options*—the
@@ -74,12 +77,12 @@ class FetchStrategy(ABC):
     """
 
     @abstractmethod
-    def fetch(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
+    async def fetch(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
         """Fetch credential(s) based on requests."""
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
+    async def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
         """Fetch credential(s) based on request."""
         raise NotImplementedError
 
@@ -90,16 +93,16 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
     def __init__(
         self,
         env_mapping: dict[str, str] | None = None,
-        http_client: requests.Session | None = None,
+        http_client: Union[httpx.AsyncClient, requests.Session, None] = None,
         auth_requirements: list[AuthRequirement] = None
     ):
         self._env_mapping: dict[str, str] = env_mapping or {}
-        self._http_client: requests.Session | None = http_client
+        self._http_client: Union[httpx.AsyncClient, requests.Session, None] = http_client or httpx.AsyncClient()
         self._auth_requirements: list[AuthRequirement] = auth_requirements or []
         self._security_schemes: dict[str, dict[str, SecurityScheme]] = \
             create_security_schemes_from_auth_requirements(self._auth_requirements)
 
-    def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
+    async def fetch_one(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
         """
         Fetch credential from environment variable.
         """
@@ -121,25 +124,25 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 Credential(
                     id=f"env-{scheme_name}",
                     security_scheme=scheme,
-                    auth_value=self._resolve_auth_value(scheme_name, source_name, requirement.scopes)
+                    auth_value=await self._resolve_auth_value(scheme_name, source_name, requirement.scopes)
                 )
             )
 
         return credentials
 
-    def fetch(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
+    async def fetch(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
         """Fetch credential from environment variable."""
         # Fetch credentials for each request one at a time, as its going to the env
         # we dont need to batch this (but we could)
         credentials = []
         for req in requests:
-            credentials.extend(self.fetch_one(req, options))
+            credentials.extend(await self.fetch_one(req, options))
         return credentials
 
     ###########################################################################
     ###################### Private API ########################################
     ###########################################################################
-    def _resolve_auth_value(
+    async def _resolve_auth_value(
         self,
         scheme_name: str,
         source_name: str | None = None,
@@ -208,7 +211,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 )
 
         elif scheme.type == AuthType.OAUTH2:
-            return self._resolve_oauth2_auth_value(scheme=scheme, scheme_name=scheme_name, source_name=source_name, scopes=scopes)
+            return await self._resolve_oauth2_auth_value(scheme=scheme, scheme_name=scheme_name, source_name=source_name, scopes=scopes)
 
         elif scheme.type == AuthType.OPENID:
             # For OpenID, check for ID token
@@ -238,7 +241,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
 
         return None
 
-    def _resolve_oauth2_auth_value(
+    async def _resolve_oauth2_auth_value(
         self,
         scheme: OAuth2Scheme,
         scheme_name: str,
@@ -285,7 +288,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             token_url = scheme.flows.client_credentials.token_url
 
             if client_id and client_secret and token_url:
-                access_token = self._request_oauth_access_token(
+                access_token = await self._request_oauth_access_token(
                     token_url=token_url,
                     client_id=client_id,
                     client_secret=client_secret,
@@ -305,7 +308,7 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
             access_token=access_token
         )
 
-    def _request_oauth_access_token(
+    async def _request_oauth_access_token(
         self,
         token_url: str,
         client_id: str,
@@ -345,7 +348,11 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 data["scope"] = scopes_str
 
             # Make the token request
-            response = self._http_client.post(token_url, headers=headers, data=data)
+            if isinstance(self._http_client, httpx.AsyncClient):
+                response = await self._http_client.post(token_url, headers=headers, data=data)
+            else:
+                # Fallback to sync requests if that's what we have
+                response = self._http_client.post(token_url, headers=headers, data=data)
 
             if response.status_code == 200:
                 token_data = response.json()
@@ -424,6 +431,15 @@ class EnvironmentVariableFetchStrategy(FetchStrategy):
                 return schemes[scheme_name]
 
         return None
+
+    # Sync wrapper methods for backward compatibility
+    def fetch_sync(self, requests: list[SecurityOption], options: FetchOptions | None = None) -> list[Credential]:
+        """Synchronous wrapper for fetch"""
+        return asyncio.run(self.fetch(requests, options))
+
+    def fetch_one_sync(self, request: SecurityOption, options: FetchOptions | None = None) -> list[Credential]:
+        """Synchronous wrapper for fetch_one"""
+        return asyncio.run(self.fetch_one(request, options))
 
 
 def create_security_schemes_from_auth_requirements(auth_requirements: list[AuthRequirement]) -> dict[str, dict[str, SecurityScheme]]:

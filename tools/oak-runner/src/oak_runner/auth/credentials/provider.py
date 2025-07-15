@@ -4,8 +4,11 @@ Credential Provider System - A flexible, extensible credential management system
 with composite parts, fetch strategies, caching, and validation pipelines.
 """
 
+import asyncio
 import logging
+from typing import Union
 
+import httpx
 import requests
 
 from oak_runner.auth.auth_parser import AuthRequirement
@@ -42,11 +45,11 @@ class CredentialProvider:
         self.validators: list[CredentialValidator] = validators or []
         self.transformers: list[CredentialTransformer] = transformers or []
 
-    ## Public API ##
-    def get_credential(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> list[Credential]:
+    ## Public Async API ##
+    async def get_credential(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> list[Credential]:
         # Fetch credential
         logger.debug(f"Fetching credential for {request=}")
-        credentials = self.strategy.fetch([request], fetch_options)
+        credentials = await self.strategy.fetch([request], fetch_options)
 
         # Validate
         if not self._are_valid_credentials(credentials):
@@ -58,16 +61,25 @@ class CredentialProvider:
         credentials = self._transform_credentials(credentials)
         return credentials
 
-    def get_credentials(self, requests: list[SecurityOption], fetch_options: FetchOptions | None = None) -> list[Credential]:
+    async def get_credentials(self, requests: list[SecurityOption], fetch_options: FetchOptions | None = None) -> list[Credential]:
         credentials = []
         for request in requests:
-            credentials.extend(self.get_credential(request, fetch_options))
+            credentials.extend(await self.get_credential(request, fetch_options))
         return credentials
+
+    ## Sync Wrapper API ##
+    def get_credential_sync(self, request: SecurityOption, fetch_options: FetchOptions | None = None) -> list[Credential]:
+        """Synchronous wrapper for get_credential"""
+        return asyncio.run(self.get_credential(request, fetch_options))
+
+    def get_credentials_sync(self, requests: list[SecurityOption], fetch_options: FetchOptions | None = None) -> list[Credential]:
+        """Synchronous wrapper for get_credentials"""
+        return asyncio.run(self.get_credentials(requests, fetch_options))
 
     # Deprecated API #
     @deprecated("Use get_credentials() instead, this will be removed in a future release")
     def resolve_credentials(self, security_options: list[SecurityOption], source_name: str | None = None) -> list[RequestAuthValue]:
-        creds = self.get_credentials(security_options, FetchOptions(source_name=source_name))
+        creds = self.get_credentials_sync(security_options, FetchOptions(source_name=source_name))
         return [cred.request_auth_value for cred in creds]
 
     ## Private API ##
@@ -99,11 +111,16 @@ class CredentialProviderFactory:
 
     @staticmethod
     def create_default(
-        env_mapping: dict[str, str],
-        http_client: requests.Session | None = None,
+        env_mapping: dict[str, str] | None = None,
+        http_client: Union[httpx.AsyncClient, requests.Session, None] = None,
         auth_requirements: list[AuthRequirement] | None = None
     ) -> CredentialProvider:
         """Create a default credential provider with EnvironmentVariableFetchStrategy"""
+        if env_mapping is None:
+            env_mapping = {}
+        if auth_requirements is None:
+            auth_requirements = []
+            
         return CredentialProvider(
             strategy=EnvironmentVariableFetchStrategy(env_mapping, http_client, auth_requirements),
             validators=[ValidCredentialValidator()],

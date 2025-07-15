@@ -8,6 +8,7 @@ authors = [
 dependencies = [
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
+    "httpx>=0.24.0",
     "requests>=2.28.0",
     "jsonpath-ng>=1.5.0",
     "jsonpointer>=3.0.0",
@@ -59,9 +60,11 @@ line-length = 100
 target-version = "py310"
 select = ["E", "F", "B", "W", "I", "N", "UP", "YTT", "S"]
 ignore = []
+
 [dependency-groups]
 dev = [
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "mypy>=1.5.1",
     "black>=23.7.0",
     "ruff>=0.0.289",

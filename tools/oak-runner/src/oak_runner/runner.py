@@ -7,11 +7,13 @@ workflow specification. It builds an execution tree based on the possible paths 
 executes OpenAPI operations sequentially, handling success/failure conditions and flow control.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Union
 
+import httpx
 import requests
 
 from .auth.auth_processor import AuthProcessor
@@ -51,7 +53,7 @@ class OAKRunner:
         self,
         arazzo_doc: ArazzoDoc | None = None,
         source_descriptions: dict[str, OpenAPIDoc] = None,
-        http_client=None,
+        http_client: Union[httpx.AsyncClient, requests.Session, None] = None,
         auth_provider: CredentialProvider | None = None
     ):
         """
@@ -60,7 +62,7 @@ class OAKRunner:
         Args:
             arazzo_doc: Parsed Arazzo document
             source_descriptions: Dictionary of Open API Specs where the key is the source description name as defined in the Arazzo document
-            http_client: Optional HTTP client for direct API calls (defaults to requests)
+            http_client: Optional HTTP client for direct API calls (defaults to httpx.AsyncClient)
             auth_provider: Optional authentication provider
         """
         if not arazzo_doc and not source_descriptions:
@@ -76,11 +78,13 @@ class OAKRunner:
             arazzo_specs=[arazzo_doc] if arazzo_doc else [],
         )
 
-        http_client = http_client or requests.Session()
+        if http_client is None:
+            http_client = httpx.AsyncClient()
+        
         self.auth_provider = auth_provider or CredentialProviderFactory.create_default(
-            auth_requirements=auth_config.get("auth_requirements", []),
             env_mapping=auth_config.get("env_mappings", {}),
-            http_client=http_client
+            http_client=http_client,
+            auth_requirements=auth_config.get("auth_requirements", []),
         )
 
         # Initialize HTTP client
@@ -101,20 +105,22 @@ class OAKRunner:
         }
 
     @classmethod
-    def from_arazzo_path(cls, arazzo_path: str, base_path: str = None, http_client=None, auth_provider=None):
+    def from_arazzo_path(cls, arazzo_path: str, base_path: str = None, http_client: Union[httpx.AsyncClient, requests.Session, None] = None, auth_provider=None):
         """
         Initialize the runner with an Arazzo document path
 
         Args:
             arazzo_path: Path to the Arazzo document
             base_path: Optional base path for source descriptions
-            http_client: Optional HTTP client for direct API calls (defaults to requests)
+            http_client: Optional HTTP client for direct API calls (defaults to httpx.AsyncClient)
         """
         if not arazzo_path:
             raise ValueError("Arazzo document path is required to initialize the runner.")
 
         arazzo_doc = load_arazzo_doc(arazzo_path)
-        source_descriptions = load_source_descriptions(arazzo_doc, arazzo_path, base_path, http_client)
+        # For loading source descriptions, we can use requests temporarily for file operations
+        temp_client = requests.Session() if http_client is None else http_client
+        source_descriptions = load_source_descriptions(arazzo_doc, arazzo_path, base_path, temp_client)
         return cls(arazzo_doc, source_descriptions, http_client, auth_provider)
 
     @classmethod
@@ -166,7 +172,7 @@ class OAKRunner:
             except Exception as e:
                 logger.error(f"Error in {event_type} callback: {e}")
 
-    def start_workflow(self, workflow_id: str, inputs: dict[str, Any] | None = None, runtime_params: RuntimeParams | None = None) -> str:
+    async def start_workflow(self, workflow_id: str, inputs: dict[str, Any] | None = None, runtime_params: RuntimeParams | None = None) -> str:
         """
         Start a new workflow execution
 
@@ -200,12 +206,12 @@ class OAKRunner:
                 logger.info(f"Executing dependency workflow: {dep_workflow_id}")
                 # Execute the dependency workflow and wait for completion
                 # Pass runtime_params to the dependent workflow execution
-                dep_execution_id = self.start_workflow(dep_workflow_id, inputs, runtime_params)
+                dep_execution_id = await self.start_workflow(dep_workflow_id, inputs, runtime_params)
 
                 # Run the dependency workflow until completion
                 while True:
                     # execute_next_step will now retrieve runtime_params from the state
-                    result = self.execute_next_step(dep_execution_id)
+                    result = await self.execute_next_step(dep_execution_id)
                     if result.get("status") in [WorkflowExecutionStatus.WORKFLOW_COMPLETE, WorkflowExecutionStatus.ERROR]:
                         break
 
@@ -256,7 +262,7 @@ class OAKRunner:
 
         return execution_id
 
-    def execute_workflow(
+    async def execute_workflow(
         self,
         workflow_id: str,
         inputs: dict[str, Any] = None,
@@ -296,10 +302,10 @@ class OAKRunner:
         self.register_callback("step_complete", on_step_complete)
         self.register_callback("workflow_complete", on_workflow_complete)
 
-        execution_id = self.start_workflow(workflow_id, inputs, runtime_params)
+        execution_id = await self.start_workflow(workflow_id, inputs, runtime_params)
 
         while True:
-            result = self.execute_next_step(execution_id)
+            result = await self.execute_next_step(execution_id)
 
             if result.get("status") in [WorkflowExecutionStatus.WORKFLOW_COMPLETE, WorkflowExecutionStatus.ERROR]:
                 # Get the execution state to access step outputs
@@ -316,7 +322,7 @@ class OAKRunner:
                 )
                 return execution_result
 
-    def execute_next_step(self, execution_id: str) -> dict:
+    async def execute_next_step(self, execution_id: str) -> dict:
         """
         Execute the next step in the workflow
 
@@ -395,10 +401,10 @@ class OAKRunner:
         try:
             if "workflowId" in next_step:
                 # Handle nested workflow execution
-                step_result = self._execute_nested_workflow(next_step, state)
+                step_result = await self._execute_nested_workflow(next_step, state)
             else:
                 # Execute operation step
-                step_result = self.step_executor.execute_step(next_step, state)
+                step_result = await self.step_executor.execute_step(next_step, state)
 
             success = step_result.get("success", False)
 
@@ -468,7 +474,7 @@ class OAKRunner:
                 # Go to another step or workflow
                 if "workflow_id" in next_action:
                     # Start a new workflow
-                    new_execution_id = self.start_workflow(
+                    new_execution_id = await self.start_workflow(
                         next_action["workflow_id"], next_action.get("inputs", {})
                     )
                     return {
@@ -520,7 +526,7 @@ class OAKRunner:
 
             return {"status": WorkflowExecutionStatus.STEP_ERROR, "step_id": step_id, "error": str(e)}
 
-    def _execute_nested_workflow(self, step: dict, state: ExecutionState) -> dict:
+    async def _execute_nested_workflow(self, step: dict, state: ExecutionState) -> dict:
         """Execute a nested workflow"""
         workflow_id = step.get("workflowId")
 
@@ -566,11 +572,11 @@ class OAKRunner:
             workflow_inputs[name] = value
 
         # Start the nested workflow
-        execution_id = self.start_workflow(workflow_id, workflow_inputs)
+        execution_id = await self.start_workflow(workflow_id, workflow_inputs)
 
         # Execute the nested workflow until completion
         while True:
-            result = self.execute_next_step(execution_id)
+            result = await self.execute_next_step(execution_id)
             if result.get("status") in [WorkflowExecutionStatus.WORKFLOW_COMPLETE, WorkflowExecutionStatus.ERROR]:
                 break
 
@@ -591,7 +597,7 @@ class OAKRunner:
 
         return {"success": all_success, "outputs": nested_state.workflow_outputs}
 
-    def execute_operation(
+    async def execute_operation(
         self,
         inputs: dict[str, Any],
         operation_id: str | None = None,
@@ -631,7 +637,7 @@ class OAKRunner:
 
         try:
             # Delegate to StepExecutor's implementation
-            result = self.step_executor.execute_operation(
+            result = await self.step_executor.execute_operation(
                 inputs=inputs,
                 operation_id=operation_id,
                 operation_path=operation_path,
@@ -639,7 +645,7 @@ class OAKRunner:
             )
             logger.info(f"OAKRunner: Direct operation execution finished for {log_identifier}")
             return result
-        except (ValueError, requests.exceptions.HTTPError) as e:
+        except (ValueError,) as e:
             # Re-raise known error types directly
             logger.error(f"OAKRunner: Error executing operation {log_identifier}: {e}")
             raise e
@@ -648,6 +654,62 @@ class OAKRunner:
             logger.exception(f"OAKRunner: Unexpected error executing operation {log_identifier}: {e}")
             # Wrap or re-raise depending on desired error handling strategy
             raise RuntimeError(f"Unexpected error during operation execution: {e}") from e
+
+    # Sync wrapper methods for backward compatibility
+    def start_workflow_sync(self, workflow_id: str, inputs: dict[str, Any] | None = None, runtime_params: RuntimeParams | None = None) -> str:
+        """Synchronous wrapper for start_workflow"""
+        return asyncio.run(self.start_workflow(workflow_id, inputs, runtime_params))
+
+    def execute_workflow_sync(
+        self,
+        workflow_id: str,
+        inputs: dict[str, Any] = None,
+        runtime_params: RuntimeParams | None = None
+    ) -> WorkflowExecutionResult:
+        """Synchronous wrapper for execute_workflow"""
+        return asyncio.run(self.execute_workflow(workflow_id, inputs, runtime_params))
+
+    def execute_next_step_sync(self, execution_id: str) -> dict:
+        """Synchronous wrapper for execute_next_step"""
+        return asyncio.run(self.execute_next_step(execution_id))
+
+    def execute_operation_sync(
+        self,
+        inputs: dict[str, Any],
+        operation_id: str | None = None,
+        operation_path: str | None = None,
+        runtime_params: RuntimeParams | None = None,
+    ) -> dict:
+        """Synchronous wrapper for execute_operation"""
+        return asyncio.run(self.execute_operation(inputs, operation_id, operation_path, runtime_params))
+
+    # Original sync methods maintained for compatibility
+    def start_workflow(self, workflow_id: str, inputs: dict[str, Any] | None = None, runtime_params: RuntimeParams | None = None) -> str:
+        """Synchronous version that wraps the async implementation"""
+        return self.start_workflow_sync(workflow_id, inputs, runtime_params)
+
+    def execute_workflow(
+        self,
+        workflow_id: str,
+        inputs: dict[str, Any] = None,
+        runtime_params: RuntimeParams | None = None
+    ) -> WorkflowExecutionResult:
+        """Synchronous version that wraps the async implementation"""
+        return self.execute_workflow_sync(workflow_id, inputs, runtime_params)
+
+    def execute_next_step(self, execution_id: str) -> dict:
+        """Synchronous version that wraps the async implementation"""
+        return self.execute_next_step_sync(execution_id)
+
+    def execute_operation(
+        self,
+        inputs: dict[str, Any],
+        operation_id: str | None = None,
+        operation_path: str | None = None,
+        runtime_params: RuntimeParams | None = None,
+    ) -> dict:
+        """Synchronous version that wraps the async implementation"""
+        return self.execute_operation_sync(inputs, operation_id, operation_path, runtime_params)
 
     @deprecated("Use OAKRunner.generate_env_mappings instead. Will drop support in a future release.")
     def get_env_mappings(self) -> dict[str, Any]:

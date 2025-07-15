@@ -4,9 +4,11 @@ HTTP Client for OAK Runner
 
 This module provides HTTP request handling for the OAK Runner.
 """
+import asyncio
 import logging
-from typing import Any
+from typing import Any, Union
 
+import httpx
 import requests
 
 from oak_runner.auth.credentials.fetch import FetchOptions
@@ -20,15 +22,41 @@ logger = logging.getLogger("arazzo-runner.http")
 class HTTPExecutor:
     """HTTP client for executing API requests in Arazzo workflows"""
 
-    def __init__(self, http_client=None, auth_provider: CredentialProvider | None = None):
+    def __init__(self, http_client: Union[httpx.AsyncClient, requests.Session, None] = None, auth_provider: CredentialProvider | None = None):
         """
         Initialize the HTTP client
 
         Args:
-            http_client: Optional HTTP client (defaults to requests.Session)
+            http_client: Optional HTTP client (defaults to httpx.AsyncClient)
+            auth_provider: Optional credential provider for authentication
         """
-        self.http_client = http_client or requests.Session()
+        if http_client is None:
+            self.http_client = httpx.AsyncClient()
+            self._is_async = True
+        elif isinstance(http_client, httpx.AsyncClient):
+            self.http_client = http_client
+            self._is_async = True
+        elif isinstance(http_client, requests.Session):
+            # Support legacy requests.Session for backward compatibility
+            self.http_client = http_client
+            self._is_async = False
+        else:
+            # Assume it's a custom client that supports the async interface
+            self.http_client = http_client
+            self._is_async = True
+            
         self.auth_provider: CredentialProvider | None = auth_provider
+
+    async def __aenter__(self):
+        """Async context manager entry"""
+        if hasattr(self.http_client, '__aenter__'):
+            await self.http_client.__aenter__()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit"""
+        if hasattr(self.http_client, '__aexit__'):
+            await self.http_client.__aexit__(exc_type, exc_val, exc_tb)
 
     def _get_content_type_category(self, content_type: str | None) -> str:
         """
@@ -54,7 +82,7 @@ class HTTPExecutor:
         else:
             return 'raw'
 
-    def execute_request(
+    async def execute_request(
         self, method: str, url: str, parameters: dict[str, Any], request_body: dict | None, security_options: list[SecurityOption] | None = None, source_name: str | None = None
     ) -> dict:
         """
@@ -92,7 +120,7 @@ class HTTPExecutor:
                 logger.debug(f"Option {i} requirements: {option}")
 
         # Apply authentication headers from auth_provider if available
-        self._apply_auth_to_request(url, headers, query_params, cookies, security_options, source_name)
+        await self._apply_auth_to_request(url, headers, query_params, cookies, security_options, source_name)
 
         # Prepare request body
         data = None
@@ -120,7 +148,7 @@ class HTTPExecutor:
                     # A field is treated as a file upload if its value is an object
                     # containing 'content' and 'filename' keys.
                     if isinstance(value, dict) and "content" in value and "filename" in value:
-                        # requests expects a tuple: (filename, file_data, content_type)
+                        # httpx expects a tuple: (filename, file_data, content_type)
                         file_content = value["content"]
                         file_name = value["filename"] if value.get("filename") else "attachment"
                         file_type = value.get("contentType", "application/octet-stream")
@@ -132,7 +160,7 @@ class HTTPExecutor:
                         logger.debug(f"Preparing raw-bytes payload as file for key '{key}'.")
                     else:
                         data[key] = value
-                # Do NOT set Content-Type header here; `requests` will do it with the correct boundary
+                # Do NOT set Content-Type header here; `httpx` will do it with the correct boundary
 
             elif content_category == 'json':
                 # Path 2: JSON content
@@ -181,21 +209,39 @@ class HTTPExecutor:
         if cookies:
             logger.debug(f"Cookies: {cookies}")
 
-        # Execute the request
-        response = self.http_client.request(
-            method=method,
-            url=url,
-            params=query_params,
-            headers=headers,
-            cookies=cookies,
-            data=data,
-            json=json_data,
-            files=files,
-        )
+        # Execute the request based on client type
+        if self._is_async:
+            response = await self._execute_async_request(
+                method=method,
+                url=url,
+                params=query_params,
+                headers=headers,
+                cookies=cookies,
+                data=data,
+                json=json_data,
+                files=files,
+            )
+        else:
+            # Fallback to sync requests for backward compatibility
+            response = self._execute_sync_request(
+                method=method,
+                url=url,
+                params=query_params,
+                headers=headers,
+                cookies=cookies,
+                data=data,
+                json=json_data,
+                files=files,
+            )
 
         # Process the response
         try:
-            response_json = response.json()
+            if hasattr(response, 'json'):
+                # httpx response
+                response_json = response.json()
+            else:
+                # requests response
+                response_json = response.json()
         except Exception as e:
             logger.debug(f"No JSON in response (or broken JSON): {e}")
             response_json = None
@@ -217,7 +263,15 @@ class HTTPExecutor:
             "body": body_value,
         }
 
-    def _apply_auth_to_request(
+    async def _execute_async_request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """Execute an async HTTP request using httpx"""
+        return await self.http_client.request(method=method, url=url, **kwargs)
+
+    def _execute_sync_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Execute a sync HTTP request using requests (fallback)"""
+        return self.http_client.request(method=method, url=url, **kwargs)
+
+    async def _apply_auth_to_request(
         self,
         url: str,
         headers: dict[str, str],
@@ -235,6 +289,7 @@ class HTTPExecutor:
             query_params: Query parameters dictionary to modify
             cookies: Cookies dictionary to modify
             security_options: List of security options to use for authentication
+            source_name: Source name for authentication context
         """
         if not self.auth_provider:
             logger.debug("No auth_provider available, skipping auth application")
@@ -249,7 +304,7 @@ class HTTPExecutor:
                 fetch_options = FetchOptions(
                     source_name=source_name
                 )
-                credentials: list[Credential] = self.auth_provider.get_credentials(security_options, fetch_options)
+                credentials = self.auth_provider.get_credentials(security_options, fetch_options)
                 if not credentials:
                     logger.debug("No credentials resolved for the security requirements")
                     return
@@ -282,3 +337,23 @@ class HTTPExecutor:
         except Exception as e:
             logger.error(f"Error applying auth to request: {e}")
             # Don't re-raise, just log and continue
+
+    # Sync wrapper methods for backward compatibility
+    def execute_request_sync(
+        self, method: str, url: str, parameters: dict[str, Any], request_body: dict | None, security_options: list[SecurityOption] | None = None, source_name: str | None = None
+    ) -> dict:
+        """
+        Synchronous wrapper for execute_request
+        
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            url: URL to request
+            parameters: Dictionary of parameters by location (path, query, header, cookie)
+            request_body: Optional request body
+            security_options: Optional list of security options for authentication
+            source_name: Source API name to distinguish between APIs with conflicting scheme names
+
+        Returns:
+            response: Dictionary with status_code, headers, body
+        """
+        return asyncio.run(self.execute_request(method, url, parameters, request_body, security_options, source_name))

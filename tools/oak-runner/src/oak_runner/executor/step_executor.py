@@ -5,6 +5,7 @@ Step Executor for OAK Runner
 This module provides the main StepExecutor class that orchestrates the execution of workflow steps.
 """
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -53,8 +54,7 @@ class StepExecutor:
         self.action_handler = ActionHandler(source_descriptions)
         self.server_processor = ServerProcessor(source_descriptions)
 
-
-    def execute_step(self, step: dict, state: ExecutionState) -> dict:
+    async def execute_step(self, step: dict, state: ExecutionState) -> dict:
         """
         Execute a single workflow step
 
@@ -69,16 +69,16 @@ class StepExecutor:
 
         # Determine what to execute: operation or workflow
         if "operationId" in step:
-            return self._execute_operation_by_id(step, state)
+            return await self._execute_operation_by_id(step, state)
         elif "operationPath" in step:
-            return self._execute_operation_by_path(step, state)
+            return await self._execute_operation_by_path(step, state)
         elif "workflowId" in step:
             # Nested workflows do not directly use HTTPExecutor with server configs at this level
-            return self._execute_nested_workflow(step, state)
+            return await self._execute_nested_workflow(step, state)
         else:
             raise ValueError(f"Step {step_id} does not specify an operation or workflow to execute")
 
-    def _execute_operation_by_id(self, step: dict, state: ExecutionState) -> dict:
+    async def _execute_operation_by_id(self, step: dict, state: ExecutionState) -> dict:
         """Execute an operation by its operationId"""
         operation_id = step.get("operationId")
         if not operation_id:
@@ -117,7 +117,7 @@ class StepExecutor:
             return {"success": False, "response": {"error": error_msg, "status_code": 0}, "outputs": {}}
 
         # Execute the HTTP request
-        response = self.http_client.execute_request(
+        response = await self.http_client.execute_request(
             method=operation_info.get("method"),
             url=final_url_template,
             parameters=parameters,
@@ -134,7 +134,7 @@ class StepExecutor:
 
         return {"success": success, "response": response, "outputs": outputs}
 
-    def _execute_operation_by_path(self, step: dict, state: ExecutionState) -> dict:
+    async def _execute_operation_by_path(self, step: dict, state: ExecutionState) -> dict:
         """Execute an operation by its operationPath"""
         operation_path = step.get("operationPath") # This is the method:path string e.g. GET:/pets
         step_id = step.get("stepId", "unknown")
@@ -214,7 +214,7 @@ class StepExecutor:
             return {"success": False, "response": {"error": error_msg, "status_code": 0}, "outputs": {}}
 
         # Execute the HTTP request
-        response = self.http_client.execute_request(
+        response = await self.http_client.execute_request(
             method=operation_info.get("method"),
             url=final_url_template,
             parameters=parameters,
@@ -231,7 +231,7 @@ class StepExecutor:
 
         return {"success": success, "response": response, "outputs": outputs}
 
-    def _execute_nested_workflow(self, step: dict, state: ExecutionState) -> dict:
+    async def _execute_nested_workflow(self, step: dict, state: ExecutionState) -> dict:
         """
         Execute a nested workflow
 
@@ -250,7 +250,7 @@ class StepExecutor:
         """
         return self.action_handler.determine_next_action(step, success, state)
 
-    def execute_operation(
+    async def execute_operation(
         self,
         inputs: dict[str, Any],
         operation_id: str | None = None,
@@ -358,7 +358,7 @@ class StepExecutor:
 
         try:
             logger.debug(f"Executing direct API call: {method} {url}")
-            response_data = self.http_client.execute_request(
+            response_data = await self.http_client.execute_request(
                 method=method,
                 url=url,
                 parameters=prepared_params, # Pass the whole structure
@@ -373,3 +373,18 @@ class StepExecutor:
             # Re-raise or handle appropriately - for now, re-raise
             # Consider wrapping in a custom exception if needed
             raise e
+
+    # Sync wrapper methods for backward compatibility
+    def execute_step_sync(self, step: dict, state: ExecutionState) -> dict:
+        """Synchronous wrapper for execute_step"""
+        return asyncio.run(self.execute_step(step, state))
+
+    def execute_operation_sync(
+        self,
+        inputs: dict[str, Any],
+        operation_id: str | None = None,
+        operation_path: str | None = None,
+        runtime_params: RuntimeParams | None = None,
+    ) -> dict:
+        """Synchronous wrapper for execute_operation"""
+        return asyncio.run(self.execute_operation(inputs, operation_id, operation_path, runtime_params))
